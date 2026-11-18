@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 
 from pydantic import ValidationError
 
@@ -61,6 +62,20 @@ ALLOWED_TOPICS = {
     "industry",
     "other",
 }
+
+# A title that is nothing but "package 1.2.3" is a release note, not an article.
+# The prompt already says so in words and the model does not reliably comply --
+# on the first labelled case, "llm 0.37.3" scored 58 and took a published slot.
+# A regex is cheaper, faster and more predictable than another round of prompt
+# tuning for a rule this mechanical.
+VERSION_ONLY_RE = re.compile(
+    r"^[\w.\-]+\s+v?\d+\.\d+(?:\.\d+)?(?:[a-z]+\d*)?$", re.IGNORECASE
+)
+VERSION_RELEASE_SCORE_CAP = 20.0
+
+
+def is_version_release(title: str) -> bool:
+    return bool(VERSION_ONLY_RE.match((title or "").strip()))
 
 
 def build_user_prompt(articles: list[Article]) -> str:
@@ -127,6 +142,8 @@ def _validate(
             score.topic = "other"
         if not score.one_liner:
             score.one_liner = by_id[item_id].title[:180]
+        if is_version_release(by_id[item_id].title):
+            score.score = min(score.score, VERSION_RELEASE_SCORE_CAP)
         scores[item_id] = score
 
     return scores, sorted(wanted - set(scores))
