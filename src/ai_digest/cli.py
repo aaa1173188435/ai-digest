@@ -230,7 +230,8 @@ def cmd_eval_label(args: argparse.Namespace) -> int:
             "Run `ai-digest eval annotate <case>` first for a much easier labelling pass."
         )
 
-    out = settings.eval_dir / f"label-{case.case_id}.html"
+    out_dir = Path(args.out) if args.out else settings.eval_dir
+    out = out_dir / f"label-{case.case_id}.html"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(
         build_labeler_html(case, annotations, slots=settings.top_n), encoding="utf-8"
@@ -249,6 +250,69 @@ def cmd_eval_label(args: argparse.Namespace) -> int:
         "标注 → 点『导出 labels.json』→ 然后:"
         f"\n  ai-digest eval score {args.case} <导出的 labels.json>"
     )
+    return 0
+
+
+def _newest_export() -> Path | None:
+    """Newest ``labels-*.json`` in the Downloads folder, if there is one.
+
+    The labelling page downloads to wherever the browser puts downloads, and
+    asking a human to move a file is exactly the step where the feedback loop
+    dies. So the tool looks in the obvious place.
+    """
+    downloads = Path.home() / "Downloads"
+    if not downloads.exists():
+        return None
+    candidates = sorted(
+        downloads.glob("labels-*.json"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    return candidates[0] if candidates else None
+
+
+def cmd_eval_import(args: argparse.Namespace) -> int:
+    """Validate an exported label file and file it under eval/labels/."""
+    from .eval import dataset
+
+    settings = load_settings()
+
+    source = Path(args.source) if args.source else _newest_export()
+    if source is None:
+        print("no labels-*.json found in Downloads - pass a path explicitly")
+        return 1
+    if not source.exists():
+        print(f"not found: {source}")
+        return 1
+
+    labels = dataset.load_labels(source)
+    case_path = settings.eval_dir / "cases" / f"{labels.case_id}.json"
+    if not case_path.exists():
+        print(f"no case for case_id={labels.case_id} at {case_path}")
+        print("labels must match a frozen case; run `ai-digest eval snapshot` first")
+        return 1
+
+    case = dataset.load_case(case_path)
+    known = set(case.ids())
+    unknown = [item_id for item_id in labels.labels if item_id not in known]
+    if unknown:
+        print(f"FAIL: {len(unknown)} labelled ids are not in the case (stale export?)")
+        return 1
+
+    dest = settings.eval_dir / "labels" / source.name
+    if dest.exists():
+        print(f"replacing existing {dest}")
+    dataset.save_json(labels, dest)
+
+    must = sum(1 for value in labels.labels.values() if value == 1)
+    print(f"imported {source.name}")
+    print(f"  case      : {case.case_id}")
+    print(f"  labelled  : {len(labels.labels)}/{len(case.items)} ({labels.coverage(case):.0%})")
+    print(f"  必须留    : {must}  (位置 {settings.top_n})")
+    if must > settings.top_n:
+        print(f"  ! {must} 条超过 {settings.top_n} 个位置，rubric 可能又松了")
+    print(f"  saved to  : {dest}")
+    print(f"\nnext:  ai-digest eval score {case_path} {dest}")
     return 0
 
 
@@ -384,8 +448,15 @@ def build_parser() -> argparse.ArgumentParser:
     lab = ev_sub.add_parser("label", help="generate the labelling page for a case")
     lab.add_argument("case")
     lab.add_argument("--zh", default=None, help="annotation sidecar (auto-detected)")
+    lab.add_argument("--out", default=None, help="output directory")
     lab.add_argument("--no-open", action="store_true")
     lab.set_defaults(func=cmd_eval_label)
+
+    imp = ev_sub.add_parser(
+        "import", help="file an exported labels json under eval/labels/"
+    )
+    imp.add_argument("source", nargs="?", default=None, help="path (default: newest in Downloads)")
+    imp.set_defaults(func=cmd_eval_import)
 
     sc = ev_sub.add_parser("score", help="replay a case and compute metrics")
     sc.add_argument("case")

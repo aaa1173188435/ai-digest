@@ -64,6 +64,14 @@ jobs:
             exit 0
           fi
           python -m ai_digest render
+          # Labelling pages live in public/eval too. This job starts from a clean
+          # checkout (public/ is gitignored), so it must regenerate them or the
+          # deploy would delete the pages people are labelling on.
+          shopt -s nullglob
+          for case_file in eval/cases/*.json; do
+            case "$case_file" in *.zh.json) continue;; esac
+            python -m ai_digest eval label "$case_file" --no-open --out public/eval
+          done
           echo "skip=false" >> "$GITHUB_OUTPUT"
 
       - name: Upload site

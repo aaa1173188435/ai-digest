@@ -12,9 +12,9 @@ on:
         options: [deepseek, fake]
         default: deepseek
 
-# Pages deployment needs these; nothing else does.
+# Pages deployment needs these; the eval commit-back needs contents: write.
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -65,6 +65,46 @@ jobs:
         with:
           path: data
           key: digest-db-${{ github.run_id }}
+
+      # Freeze today's candidate pool, write Chinese gists, and publish the
+      # labelling page with the site. Then commit the case so the labels that
+      # come back tomorrow have something to attach to.
+      - name: Freeze eval case
+        env:
+          TZ: Asia/Shanghai
+        run: python -m ai_digest eval snapshot
+
+      - name: Annotate eval case
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          LLM_PROVIDER: ${{ inputs.provider || 'deepseek' }}
+          TZ: Asia/Shanghai
+        run: |
+          case_file="eval/cases/$(date +%F).json"
+          if [ -f "$case_file" ]; then
+            python -m ai_digest eval annotate "$case_file" || echo "::warning::annotate failed; the page will show a warning banner"
+          fi
+
+      - name: Render labelling pages
+        run: |
+          shopt -s nullglob
+          for case_file in eval/cases/*.json; do
+            case "$case_file" in *.zh.json) continue;; esac
+            python -m ai_digest eval label "$case_file" --no-open --out public/eval
+          done
+
+      - name: Commit eval case
+        continue-on-error: true
+        run: |
+          git config user.name "ai-digest-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add eval/cases
+          if git diff --cached --quiet; then
+            echo "no new case to commit"
+            exit 0
+          fi
+          git commit -m "chore(eval): freeze case $(date +%F)"
+          git push
 
       - name: Upload site
         uses: actions/upload-pages-artifact@v3

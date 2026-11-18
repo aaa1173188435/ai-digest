@@ -141,18 +141,45 @@ Hacker News 的 RSS 把 `Article URL: … Points: 1138 # Comments: 720` 塞进 `
 
 没有评测集的调参是猜的。这一层解决的问题是：**改了 prompt 之后，是变好了，还是只是换了个错法？**
 
-### 四个命令
+### 五个命令
 
 ```bash
 ai-digest eval snapshot                                  # 冻结候选池 → eval/cases/<date>.json
 ai-digest eval annotate eval/cases/<date>.json           # 生成中文摘要（标注用）
 ai-digest eval label    eval/cases/<date>.json           # 生成标注页
-ai-digest eval score    eval/cases/<date>.json labels-<date>.json
+ai-digest eval import                                    # 收标注：默认找 Downloads 里最新的
+ai-digest eval score    eval/cases/<date>.json eval/labels/<file>.json
 ```
+
+`import` 存在的原因很实际：**反馈回路最容易断在"把文件挪到正确位置"这一步**。它自动去 `~/Downloads` 找最新的 `labels-*.json`，校验 case_id 和数据完整性，再归档到 `eval/labels/`。找不到就明确报错，不会静默用错文件。
 
 `snapshot` 冻结的是**文本本身**，不是分数。之后每次 `score` 都用当前代码和 prompt 重新打分——所以它测的是"现在的系统"，不是"那天的历史输出"。这是能做 A/B 的前提：明天的 feed 是另一批文章，不冻结就没法对比。
 
 `score` 还会打印逐条明细（上了榜的、漏掉的、不该上的），因为**数字只告诉你「好不好」，明细才告诉你「错在哪」**。
+
+### 每天的闭环
+
+评测要变成证据，必须每天有数据，而"每天手动跑一遍五个命令"是活不下去的。所以 `daily-digest` 工作流在生成简报之后，自动做完这些：
+
+1. `eval snapshot` —— 冻结当天的候选池
+2. `eval annotate` —— 给全部候选写中立中文摘要（额外约 $0.008/天）
+3. 把标注页渲染进站点：`…/ai-digest/eval/label-<date>.html`
+4. **把 case 提交回 main**（机器人 commit），这样标注回来时才有东西可挂
+
+于是人这一侧只剩两步：
+
+```
+打开 …/eval/label-<date>.html  →  标 41 条（约 3 分钟）→  导出 JSON
+```
+
+导出后**不需要手动挪文件**：`ai-digest eval import` 会去 Downloads 里找最新的那份，校验后归档到 `eval/labels/`，然后 `eval score` 出分。
+
+设计上有两处必须同时存在，少一个就断：
+
+- **case 必须进仓库**，不能只留在 Actions 缓存里——缓存 7 天不访问就没了，历史 case 也就没了。
+- **标注页必须由两条工作流都生成**。`rebuild-site` 从干净 checkout 重建 `public/`，如果它不生成标注页，一次 push 就会把线上标注页删掉。
+
+
 
 ### 标注页的两个反锚定设计
 
