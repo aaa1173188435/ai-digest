@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>归档 · AI Digest</title>
+  <style>{% include "style.css" %}</style>
+</head>
+<body>
+  <header class="site">
+    <div class="wrap">
+      <a class="brand" href="index.html">AI Digest</a>
+      <nav><a href="archive.html">归档</a></nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <h1>归档</h1>
+    <p class="sub">共 {{ dates|length }} 期</p>
+    <ul class="archive">
+      {% for d in dates %}
+      <li><a href="digests/{{ d }}.html">{{ d }}</a><span class="count"></span></li>
+      {% endfor %}
+    </ul>
+  </main>
+
+  <footer class="foot wrap">
+    <p>由 ai-digest 每日自动生成。</p>
+  </footer>
+</body>
+</html>

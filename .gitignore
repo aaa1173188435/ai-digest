@@ -1,0 +1,23 @@
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# env
+.venv/
+.env
+
+# runtime
+data/
+*.db
+*.db-wal
+*.db-shm
+.pytest_cache/
+.ruff_cache/
+
+# generated output -- keep the folder, drop the artefacts
+public/*
+!public/.gitkeep

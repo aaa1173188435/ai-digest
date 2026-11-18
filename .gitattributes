@@ -1,0 +1,6 @@
+# Keep line endings LF in the repo regardless of the Windows checkout; a CRLF
+# workflow file or shell snippet is a needless CI failure.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary

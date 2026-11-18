@@ -1,0 +1,222 @@
+# ai-digest
+
+每天 06:00 自动运行的 AI 技术简报：抓取多家技术博客 → 合并同一新闻的重复报道 → 用 LLM 打分排序并生成摘要 → 发布成静态站点。
+
+不是"RSS 转发器"。真正做的事情在**去重聚类**和**可观测的成本控制**上，见下面的设计决策。
+
+---
+
+## 架构
+
+```
+config/sources.yaml
+        │
+        ▼
+┌────────────────┐   条件请求(ETag/If-Modified-Since) · 指数退避 · 信号量限并发
+│    ingest      │◄─────────────────────────────────────────────────
+│ fetch → parse  │
+└───────┬────────┘
+        │ Article(canonical_url UNIQUE)
+        ▼
+┌────────────────┐
+│     SQLite     │   articles / feeds / digests / runs
+└───────┬────────┘
+        │ 滚动窗口 MAX_AGE_DAYS，减去"最近 7 天已推送过的"
+        ▼
+┌────────────────┐   精确哈希 → 64-bit simhash 单链聚类
+│    dedupe      │
+└───────┬────────┘
+        │ 每个簇只留一个代表（按来源权重挑）
+        ▼
+┌────────────────┐   8 条/请求 · JSON 模式 · pydantic 校验 · 失败降级
+│  enrich (LLM)  │
+└───────┬────────┘
+        │ score / topic / one_liner / bullets
+        ▼
+┌────────────────┐
+│    render      │   Markdown + 静态 HTML（index / archive / 按日期归档）
+└───────┬────────┘
+        ▼
+     public/  ──►  GitHub Pages
+```
+
+| 层 | 职责 | 关键点 |
+|---|---|---|
+| `ingest/` | 抓取与解析 | 条件请求、失败重试、并发上限 |
+| `process/normalize.py` | URL 与文本规范化 | 去 tracking 参数、折叠空白 |
+| `process/simhash.py` | 近似重复 | blake2b 哈希保证跨进程稳定 |
+| `process/dedupe.py` | 聚类 | 单链聚类，O(n²) 且显式说明边界 |
+| `process/rank.py` | LLM 富化 | 批量、校验、降级 |
+| `db.py` | 持久化 | 全部写入幂等 |
+| `render/` | 输出 | 从 DB 全量重建静态站 |
+
+---
+
+## 一次真实运行
+
+2026-11-18，`--provider fake`（离线打分，只为跑通链路）：
+
+| 指标 | 数值 |
+|---|---|
+| 信息源 | 11 个，全部成功 |
+| 抓到条目 | 110（109 条新） |
+| 4 天内候选 | 41 |
+| 预筛后送 LLM | 30 |
+| 最终展示 | 12 |
+| LLM 请求数 | 4（批大小 8） |
+| 耗时 | 11.4s |
+
+> 这一轮的分数来自关键词启发式，只验证链路和工程指标，不代表最终内容质量。接上真模型后摘要与排序才有意义。
+
+---
+
+## 四个值得讲的设计决策
+
+### 1. 去重分两阶段，代价逐级升高
+
+同一个新闻会被五家媒体报道，标题还各不相同。
+
+- **第一阶段：URL 规范化 + 唯一约束。** 去掉 `utm_*` / `fbclid` / 尾斜杠 / 片段，`canonical_url` 在 SQLite 里 UNIQUE。跨天重复抓取自然幂等。
+- **第二阶段：64-bit simhash 单链聚类。** 对 `标题 + 摘要` 取 3-gram shingle 后按位投票。两个文档 Hamming 距离 ≤ 3 视为同一故事。
+
+**为什么不用 embedding 聚类？** 每篇文章要额外一次 embedding 调用，成本和延迟都翻倍，而这两种的召回差异在"同一条新闻被复述"这个场景下很小——文本重合度本来就高。真要上语义去重，得先有评测集证明它值得，见 Roadmap。
+
+**为什么手写 simhash 而不装库？** 40 行，且能解释清楚。哈希用 `blake2b` 而不是 Python 内置 `hash()`——后者按进程加盐，跨进程结果不稳定，会让"昨天判为重复、今天判为不同"。
+
+### 2. LLM 批处理 + 严格校验 + 降级
+
+- **批量。** 一次请求处理 8 篇，把 ~300 token 的 system prompt 摊薄 8 倍。这是"一天一分钱"和"一天一毛钱"的区别。
+- **校验。** `response_format={"type":"json_object"}` 只是建议，不是保证。返回的每一项都过 pydantic：score 夹到 0–100，topic 必须在白名单里，缺失 id 的条目按缺失处理。
+- **降级。** 整批失败就退回关键词启发式（`llm/fake.py`），简报照样发布。**每天 06:00 硬失败比发布一份 80% 好的简报更糟。**
+
+### 3. 每一步都可观测
+
+- `runs` 表记录每次运行的开始/结束/状态/统计，`ai-digest status` 直接打印。
+- token 用量与**估算成本**写进当日简报页脚——成本不可见就会悄悄上涨。
+- 抓取失败、解析失败、LLM 降级都有独立计数，页脚会显示"抓取 7/8 源"。
+
+### 4. 排序分两段，因为算力不该花在看不见的地方
+
+第一次跑真实数据时：109 篇候选全部送进 LLM，最后只展示 12 条。**87% 的 token 花在了不会出现在页面上的文章上。**
+
+改成两段：
+
+```
+109 篇 ──启发式打分（免费）──► 30 篇 ──LLM 打分（花钱）──► 12 条
+```
+
+启发式只做召回（关键词 + 来源权重），LLM 做精排。默认 `PREFILTER_N=30`、`TOP_N=12`、批大小 8，所以一天只发 4 次请求。
+
+另加一条**来源多样性约束**（`MAX_PER_SOURCE=2`）：单纯按分数排序会让一个高产博客占满整页——第一次真跑的 12 条里有 6 条来自同一个人的 Datasette 版本号。先按上限选，不够再从溢出里回填。
+
+---
+
+## 调试记录：三个真实 bug
+
+这三个都是真跑起来才暴露的，而且都不是"代码写错了一个字符"那种。留着比改掉更有价值——面试里能讲清楚"你怎么发现的"，比"我写了个 pipeline"有用得多。
+
+**1. 簇代表重选时，有一篇文章凭空消失。**
+`Cluster` 原本同时存 `representative` 和 `members`，聚类结束后重新挑选代表，结果旧代表被踢出 `members` 而新代表同时出现在两处。症状很隐蔽：条目总数是对的，但 `also_reported_by` 是空的，同一新闻的另一家报道再也没出现过。
+**修法不是加判断，而是改类型：** 只存 `articles` 全量，`representative` 变成计算属性。让"代表和成员不一致"这种状态无法表示。
+
+**2. 标题里的 `<br>` 直接渲染到了页面上。**
+摘要做了 HTML 清洗，标题没有——因为"标题都是纯文本"这个假设在 BAIR 那种源上不成立。现在标题同样走一遍清洗。
+
+**3. 简报里出现了一篇 2023 年的文章。**
+候选窗口按 `fetched_at`（抓取时间）过滤，而旧博客的归档文章"今天被抓到"就被当成了"今天的新闻"。改成优先用 `published_at`，缺失时才回退到抓取时间。
+顺带发现第二个坑：不同源的时区偏移不同，`2026-11-18T06:00+02:00` 和 `2026-11-18T04:30+00:00` 按字符串比较会比出错误顺序——所以入库前统一转 UTC。
+
+---
+
+## 工程实践
+
+| 项 | 做法 |
+|---|---|
+| 幂等 | `canonical_url` UNIQUE + `ON CONFLICT`，重跑不产生重复行 |
+| 可测试性 | `LLMClient` 与 `Fetcher` 都是注入的；测试用 `httpx.MockTransport` + `FakeLLM`，**零网络** |
+| 容错 | 单个源失败不影响整轮；LLM 失败降级；损坏的 digest 行跳过而不是让整站构建崩溃 |
+| CI | GitHub Actions 先跑 `pytest`，再抓取、再部署；测试挂了就不会发布坏页面 |
+| 状态 | SQLite 是唯一跨运行状态；站点每次从 DB 全量重建 |
+
+```bash
+pytest -q          # 无需 API key，无需联网
+```
+
+---
+
+## 快速开始
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate            # Windows
+pip install -e ".[dev]"
+
+cp .env.example .env              # 填入 DEEPSEEK_API_KEY
+
+ai-digest run                     # 抓取 → 去重 → 排序 → 输出到 public/
+ai-digest serve                   # 本地预览 http://127.0.0.1:8000
+ai-digest status                  # 数据库与运行历史
+```
+
+不想花 API 额度时，用假模型跑通整条链路：
+
+```bash
+ai-digest run --provider fake
+```
+
+---
+
+## 配置
+
+所有 `settings.py` 里的字段都能用同名环境变量覆盖。常用项：
+
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `LLM_PROVIDER` | `deepseek` | `deepseek` / `fake` |
+| `DEEPSEEK_API_KEY` | — | 必填（`fake` 除外） |
+| `TOP_N` | `12` | 每天精选条数 |
+| `MAX_AGE_DAYS` | `4` | 候选文章的时间窗口 |
+| `NEAR_DUP_THRESHOLD` | `3` | simhash Hamming 阈值，越大合并越激进 |
+| `LLM_BATCH_SIZE` | `8` | 每次请求处理的文章数 |
+
+信息源在 `config/sources.yaml`，加一个源不需要改代码。
+
+---
+
+## 部署
+
+GitHub Actions 每天 22:00 UTC（北京时间 06:00）运行，产物发布到 GitHub Pages。
+
+1. 仓库 Settings → Pages → Source 选 **GitHub Actions**
+2. Secrets 里添加 `DEEPSEEK_API_KEY`
+3. 手动跑一次 `workflow_dispatch` 验证
+
+**已知限制：** SQLite 通过 `actions/cache` 在运行之间传递，而 GitHub 的缓存 7 天不活跃就会被回收——那之后历史归档会丢失（文章和已推送记录一起）。真正的修法是换成外部数据库（Supabase / 一台常开机器上的 Postgres）。当前选择是刻意用简单换成本，代价写在这里而不是藏起来。
+
+---
+
+## Roadmap
+
+- [ ] **评测集。** 50 条人工标注的"该不该进头条"，用 precision@12 和 LLM-as-judge 的摘要质量分做回归。没有这个，所有调参都是猜的。
+- [ ] **正文抽取。** 目前只用 feed 摘要，短且偶尔是残缺的。抓正文要处理付费墙和反爬，所以先不做。
+- [ ] **Agent 层。** 一个手写的 tool-calling loop：`search_articles` / `get_digest` / `add_source`，支持"这周 agent 领域有什么进展"这类追问。不用框架，因为面试要问的是失败重试和循环终止。
+- [ ] **推送。** Telegram / 邮件，把"打开网页"变成"主动送达"。
+
+---
+
+## 目录结构
+
+```
+ai-digest/
+├─ config/sources.yaml          信息源配置
+├─ src/ai_digest/
+│  ├─ ingest/                   抓取、RSS 解析、源配置
+│  ├─ process/                  规范化、simhash、聚类、LLM 富化
+│  ├─ llm/                      provider 抽象、DeepSeek、启发式兜底
+│  ├─ render/                   Markdown、静态 HTML、模板
+│  ├─ pipeline.py               端到端编排
+│  ├─ db.py                     SQLite（articles/feeds/digests/runs）
+│  └─ cli.py                    run / status / serve
+├─ tests/                       零网络测试
+└─ .github/workflows/digest.yml 定时 + 测试 + 部署
+```

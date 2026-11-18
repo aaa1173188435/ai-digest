@@ -1,0 +1,55 @@
+:root {
+  --bg: #fbfaf8;
+  --fg: #1c1b19;
+  --muted: #6b6862;
+  --line: #e3e0da;
+  --accent: #b4471f;
+  --chip: #efece6;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16161a;
+    --fg: #e8e6e1;
+    --muted: #9a968e;
+    --line: #2c2c31;
+    --accent: #e8895f;
+    --chip: #232329;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 16px/1.65 "Iowan Old Style", "Songti SC", Georgia, "Noto Serif CJK SC", serif;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 720px; margin: 0 auto; padding: 0 22px; }
+a { color: var(--fg); text-decoration: none; border-bottom: 1px solid var(--line); }
+a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+header.site { border-bottom: 1px solid var(--line); margin-bottom: 40px; }
+header.site .wrap { display: flex; justify-content: space-between; align-items: baseline; padding-top: 20px; padding-bottom: 20px; }
+.brand { font-weight: 600; letter-spacing: .04em; border: none; }
+header.site nav a { font-size: 14px; color: var(--muted); border: none; }
+h1 { font-size: 30px; line-height: 1.2; margin: 0 0 6px; font-weight: 600; }
+.sub { color: var(--muted); font-size: 14px; margin: 0 0 36px; }
+ol.items { list-style: none; margin: 0; padding: 0; }
+ol.items > li { padding: 22px 0; border-top: 1px solid var(--line); }
+ol.items > li:first-child { border-top: none; }
+.head { display: flex; gap: 10px; align-items: baseline; }
+.rank { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 14px; min-width: 1.4em; }
+.title { font-size: 18px; font-weight: 600; line-height: 1.4; border-bottom: none; }
+.title:hover { border-bottom: none; }
+.meta { margin: 6px 0 0 2.4em; font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+.chip { background: var(--chip); border-radius: 3px; padding: 1px 6px; }
+.score { color: var(--accent); }
+.one { margin: 10px 0 0 2.4em; font-size: 16px; }
+.bullets { margin: 8px 0 0 2.4em; padding-left: 18px; color: var(--muted); font-size: 14.5px; }
+.bullets li { margin: 3px 0; }
+.empty { color: var(--muted); padding: 40px 0; }
+.foot { color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); margin-top: 48px; padding: 20px 22px 60px; }
+.foot p { margin: 4px 0; }
+ul.archive { list-style: none; padding: 0; margin: 0; }
+ul.archive li { padding: 12px 0; border-top: 1px solid var(--line); font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 15px; }
+ul.archive li:first-child { border-top: none; }
+ul.archive .count { color: var(--muted); font-size: 13px; margin-left: 10px; }

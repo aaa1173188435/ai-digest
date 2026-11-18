@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ digest.digest_date }} · AI Digest</title>
+  <meta name="description" content="{{ digest.digest_date }} 的 AI 技术简报">
+  <style>{% include "style.css" %}</style>
+</head>
+<body>
+  <header class="site">
+    <div class="wrap">
+      <a class="brand" href="{{ prefix }}index.html">AI Digest</a>
+      <nav><a href="{{ prefix }}archive.html">归档</a></nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <h1>{{ digest.digest_date }}</h1>
+    <p class="sub">{{ digest.items|length }} 条 · 生成于 {{ digest.generated_at.strftime("%Y-%m-%d %H:%M") }} UTC{% if digest.stats.get('candidates') %} · 从 {{ digest.stats.get('candidates') }} 篇候选中筛出{% endif %}</p>
+
+    {% if not digest.items %}
+    <p class="empty">今天没有新内容。可能是所有源均未更新，或抓取失败——详见底部统计。</p>
+    {% endif %}
+
+    <ol class="items">
+      {% for item in digest.items %}
+      <li>
+        <div class="head">
+          <span class="rank">{{ item.rank }}</span>
+          <a class="title" href="{{ item.url }}" target="_blank" rel="noopener noreferrer">{{ item.title }}</a>
+        </div>
+        <div class="meta">
+          <span class="chip">{{ item.source }}</span>
+          <span class="chip">{{ item.topic }}</span>
+          <span class="score">{{ "%.0f"|format(item.score) }}</span>
+          {% if item.also_reported_by %}
+          <span>另见 {{ item.also_reported_by|join("、") }}</span>
+          {% endif %}
+        </div>
+        {% if item.one_liner %}
+        <p class="one">{{ item.one_liner }}</p>
+        {% endif %}
+        {% if item.bullets %}
+        <ul class="bullets">
+          {% for bullet in item.bullets %}<li>{{ bullet }}</li>{% endfor %}
+        </ul>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+  </main>
+
+  <footer class="foot wrap">
+    <p>
+      抓取 {{ digest.stats.get('fetched_ok', 0) }}/{{ digest.stats.get('sources', 0) }} 源
+      · 新文章 {{ digest.stats.get('new_articles', 0) }}
+      · 近重复合并 {{ digest.stats.get('near_duplicates', 0) }}
+      · 已推过跳过 {{ digest.stats.get('already_featured', 0) }}
+    </p>
+    <p>
+      模型 {{ digest.stats.get('llm_provider', '-') }}
+      · {{ digest.stats.get('prompt_tokens', 0) + digest.stats.get('completion_tokens', 0) }} tokens
+      · 约 ${{ "%.4f"|format(digest.stats.get('estimated_cost_usd', 0)) }}
+      · 耗时 {{ digest.stats.get('duration_seconds', 0) }}s
+    </p>
+  </footer>
+</body>
+</html>
