@@ -141,17 +141,22 @@ Hacker News 的 RSS 把 `Article URL: … Points: 1138 # Comments: 720` 塞进 `
 
 没有评测集的调参是猜的。这一层解决的问题是：**改了 prompt 之后，是变好了，还是只是换了个错法？**
 
-### 五个命令
+### 六个命令
 
 ```bash
 ai-digest eval snapshot                                  # 冻结候选池 → eval/cases/<date>.json
 ai-digest eval annotate eval/cases/<date>.json           # 生成中文摘要（标注用）
 ai-digest eval label    eval/cases/<date>.json           # 生成标注页
 ai-digest eval import                                    # 收标注：默认找 Downloads 里最新的
-ai-digest eval score    eval/cases/<date>.json eval/labels/<file>.json
+ai-digest eval score    eval/cases/<date>.json eval/labels/<file>.json   # 单个 case 的明细
+ai-digest eval report                                    # 所有 case 的汇总表
 ```
 
 `import` 存在的原因很实际：**反馈回路最容易断在"把文件挪到正确位置"这一步**。它自动去 `~/Downloads` 找最新的 `labels-*.json`，校验 case_id 和数据完整性，再归档到 `eval/labels/`。找不到就明确报错，不会静默用错文件。
+
+`score` 和 `report` 的分工是有意的：`score` 打印逐条明细（上了榜的、漏掉的、不该上的），用于**当时**诊断一个 case 错在哪；`report` 只给一张宏平均表，用于**隔一段时间**回答"这批改动到底有没有用"。
+
+**别每标一天就算一次分。** 1 个 case 上多捞一条就是 ±0.083，单日噪声远大于任何真实改进；跑十次还等于把同一句话读十遍。正确节奏是**每天标、攒 5–10 个 case 再 `report` 一次**。这类结论性的东西放文件里（`eval/reports/summary.md`，已提交），不依赖任何一次会话的上下文。
 
 `snapshot` 冻结的是**文本本身**，不是分数。之后每次 `score` 都用当前代码和 prompt 重新打分——所以它测的是"现在的系统"，不是"那天的历史输出"。这是能做 A/B 的前提：明天的 feed 是另一批文章，不冻结就没法对比。
 

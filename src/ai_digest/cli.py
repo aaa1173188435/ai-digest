@@ -316,6 +316,103 @@ def cmd_eval_import(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_eval_report(args: argparse.Namespace) -> int:
+    """Score every labelled case and print one compact table.
+
+    This exists to keep the feedback loop cheap: one run per batch of labels
+    instead of one per day, and a summary that is a page rather than ten.
+    """
+    from .eval import dataset, runner
+
+    settings = load_settings()
+    if args.provider:
+        settings.llm_provider = args.provider
+    k = args.k or settings.top_n
+
+    cases_dir = settings.eval_dir / "cases"
+    labels_dir = settings.eval_dir / "labels"
+    if not cases_dir.exists() or not labels_dir.exists():
+        print(f"no cases/labels under {settings.eval_dir}")
+        return 1
+
+    cases = {}
+    for path in sorted(cases_dir.glob("*.json")):
+        if path.name.endswith(".zh.json"):
+            continue
+        case = dataset.load_case(path)
+        cases[case.case_id] = case
+
+    # Newest label file per case wins: re-labelling under a new rubric should
+    # replace the old answer, not compete with it.
+    newest: dict[str, Path] = {}
+    for path in labels_dir.glob("*.json"):
+        try:
+            labels = dataset.load_labels(path)
+        except Exception:  # noqa: BLE001 - skip unreadable files, report the rest
+            print(f"skip unreadable label file: {path.name}")
+            continue
+        if labels.case_id not in cases:
+            continue
+        current = newest.get(labels.case_id)
+        if current is None or path.stat().st_mtime > current.stat().st_mtime:
+            newest[labels.case_id] = path
+
+    if not newest:
+        print("no labels match any case yet")
+        return 1
+
+    if args.max_cases and len(newest) > args.max_cases:
+        ordered = sorted(newest.items())[-args.max_cases :]
+        newest = dict(ordered)
+
+    print(f"scoring {len(newest)} case(s) at k={k} with {settings.llm_provider} ...\n")
+
+    selected = [(case_id, cases[case_id], dataset.load_labels(newest[case_id]))
+                for case_id in sorted(newest)]
+
+    async def score_all() -> list[dict]:
+        rows: list[dict] = []
+        for case_id, case, labels in selected:
+            report = await runner.evaluate_case(case, labels, settings, k=k)
+            rows.append(report)
+            print(
+                f"  {case_id}  must={report['metrics']['relevant_total']:>2}  "
+                f"P@{k}={report['metrics'][f'precision@{k}']:<6} "
+                f"lift={report['metrics']['lift_over_random']}"
+            )
+        return rows
+
+    rows = asyncio.run(score_all())
+
+    totals = runner.aggregate(rows, k)
+
+    print("\n" + "-" * 58)
+    print(f"cases           : {totals['cases']}")
+    print(f"mean precision@{k}: {totals[f'mean_precision@{k}']}")
+    print(f"mean nDCG@{k}     : {totals[f'mean_ndcg@{k}']}")
+    print(
+        f"mean lift       : {totals['mean_lift']}"
+        f"  (min {totals['min_lift']} / max {totals['max_lift']})"
+    )
+
+    summary_json = dataset.save_report(
+        {
+            "case_id": "summary",
+            "metrics": totals,
+            "cases": [r["case_id"] for r in rows],
+        },
+        settings.eval_dir / "reports",
+    )
+    markdown = runner.render_summary_markdown(rows, totals, k)
+    summary_md = settings.eval_dir / "reports" / "summary.md"
+    summary_md.parent.mkdir(parents=True, exist_ok=True)
+    summary_md.write_text(markdown, encoding="utf-8")
+
+    print(f"\nsummary: {summary_md}")
+    print(f"raw    : {summary_json}")
+    return 0
+
+
 def cmd_eval_score(args: argparse.Namespace) -> int:
     """Replay a case through the real ranker and score it against labels."""
     import json
@@ -457,6 +554,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     imp.add_argument("source", nargs="?", default=None, help="path (default: newest in Downloads)")
     imp.set_defaults(func=cmd_eval_import)
+
+    rep = ev_sub.add_parser(
+        "report", help="score every labelled case; one compact table"
+    )
+    rep.add_argument("--k", type=int, default=None)
+    rep.add_argument("--provider", choices=["deepseek", "fake"])
+    rep.add_argument(
+        "--max-cases", type=int, default=None, help="only the newest N cases"
+    )
+    rep.set_defaults(func=cmd_eval_report)
 
     sc = ev_sub.add_parser("score", help="replay a case and compute metrics")
     sc.add_argument("case")

@@ -127,3 +127,59 @@ def compare(report: dict, baseline: dict) -> dict[str, dict[str, float]]:
         for key in keys
         if isinstance(report["metrics"][key], (int, float))
     }
+
+
+def aggregate(reports: list[dict], k: int) -> dict[str, Any]:
+    """Macro-average across cases.
+
+    Macro, not pooled: a case with 25 relevant items should not outweigh one
+    with 3. Each day is a separate question about the same system, so each day
+    gets one vote.
+    """
+    if not reports:
+        return {"cases": 0, "k": k}
+
+    precisions = [r["metrics"][f"precision@{k}"] for r in reports]
+    lifts = [r["metrics"]["lift_over_random"] for r in reports]
+    ndcgs = [r["metrics"][f"ndcg@{k}"] for r in reports]
+
+    def mean(values: list[float]) -> float:
+        return round(sum(values) / len(values), 4) if values else 0.0
+
+    return {
+        "cases": len(reports),
+        "k": k,
+        f"mean_precision@{k}": mean(precisions),
+        f"mean_ndcg@{k}": mean(ndcgs),
+        "mean_lift": mean(lifts),
+        "min_lift": round(min(lifts), 3),
+        "max_lift": round(max(lifts), 3),
+        "total_relevant": sum(r["metrics"]["relevant_total"] for r in reports),
+        "case_ids": [r["case_id"] for r in reports],
+    }
+
+
+def render_summary_markdown(rows: list[dict], totals: dict, k: int) -> str:
+    """The file a human (or a future session) reads instead of ten blobs."""
+    lines = [
+        f"# 评测汇总（{totals.get('cases', 0)} 个 case，k={k}）",
+        "",
+        "由 `ai-digest eval report` 生成。宏平均：每天一个 case 各算一票。",
+        "",
+        f"- 平均 precision@{k}：**{totals.get(f'mean_precision@{k}', 0)}**",
+        f"- 平均 nDCG@{k}：**{totals.get(f'mean_ndcg@{k}', 0)}**",
+        f"- 平均 lift over random：**{totals.get('mean_lift', 0)}**"
+        f"（区间 {totals.get('min_lift', 0)} – {totals.get('max_lift', 0)}）",
+        "",
+        f"| case | 必须留 | precision@{k} | nDCG@{k} | lift |",
+        "|---|---|---|---|---|",
+    ]
+    for row in rows:
+        metrics = row["metrics"]
+        lines.append(
+            f"| {row['case_id']} | {metrics['relevant_total']} | "
+            f"{metrics[f'precision@{k}']} | {metrics[f'ndcg@{k}']} | "
+            f"{metrics['lift_over_random']} |"
+        )
+    lines.append("")
+    return "\n".join(lines)

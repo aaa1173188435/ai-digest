@@ -22,6 +22,8 @@ data/
 public/*
 !public/.gitkeep
 
-# eval: generated artefacts (cases and labels are committed; reports are not)
-eval/reports/
+# eval: generated artefacts (cases and labels are committed; per-run reports are not)
+# '*' rather than the directory, so the one file worth keeping can be re-included.
+eval/reports/*
+!eval/reports/summary.md
 eval/label-*.html
