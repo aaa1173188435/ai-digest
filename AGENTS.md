@@ -71,32 +71,44 @@ https://aaa1173188435.github.io/ai-digest/eval/label-<YYYY-MM-DD>.html
 - **不要每轮都调 prompt。** 见上面的节奏规则。
 - **不要用 `--min-precision` 做门禁**，用 `--min-lift`。
 
-## 这台机器的坑（会反复遇到）
+## 这台机器的坑（根因已定位）
 
-1. **PowerShell 的 TLS 是坏的**（`SEC_E_NO_CREDENTIALS`）。`Invoke-WebRequest` / `curl` 全部失败，但 **Python 和 Node 正常**。测网络用 Python。
-2. **pip 必须用镜像**，且关掉版本检查，否则会卡十几分钟：
+**根因：这个命令行跑在「低完整性级别」（Low IL）。** 用 `whoami /groups` 看到
+`Mandatory Label\Low Mandatory Level` 就能确认。这一个事实同时解释了三件事：
+schannel 拿不到凭证、写不了用户目录里 Medium IL 的文件、拉起 msys 的 `sh` 会 fork 失败。
 
-   ```powershell
-   $env:PIP_DISABLE_PIP_VERSION_CHECK = "1"
-   .\.venv\Scripts\python.exe -m pip install -e ".[dev]" `
-     --index-url https://mirrors.aliyun.com/pypi/simple/ --timeout 20
-   ```
+| 问题 | 能修吗 | 现状 |
+|---|---|---|
+| `curl` / `Invoke-WebRequest` 全部 TLS 失败 | ❌ **不可修** | Low IL 下 schannel 无法向 lsass 取客户端凭证。与 TLS 版本无关（强制 1.2 也失败）、与证书和服务无关（CryptSvc / KeyIso 都在跑）、与 crypto 目录权限无关（可读）。**用 Python 或 Node**，它们走 OpenSSL，不碰 schannel |
+| pip 装包卡十几分钟 | ✅ 已修 | 配置写在 `.venv\pip.ini`（`disable-pip-version-check` + 镜像）。不能写 `%APPDATA%\pip\pip.ini`——那是 Medium IL，Low IL 写不了，即使 DACL 里给了 FullControl：**完整性级别优先于 DACL**。现在装一个已满足的包约 0.7s |
+| `git push` 失败 | ✅ 已修 | 用 `tools\push.ps1`（见下） |
+| PowerShell 把参数拆开 | ❌ **不可修** | 这台是 **Windows PowerShell 5.1**，没有 `$PSNativeCommandArgumentPassing`（那是 PS 7.3+）。带空格/引号的参数传给原生 exe 必然被拆。用 `ConvertFrom-Json` 代替 `gh api --jq` |
 
-3. **git push 经常失败**。三个原因叠在一起：远端可能被 CI 机器人提交（需先 fetch+rebase）、GitHub 443 时通时断、凭证助手会拉起 `sh` 而它在本机崩溃。可用的组合：
+### 推代码
 
-   ```powershell
-   $b64 = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("x-access-token:$((gh auth token).Trim())"))
-   $env:GIT_CONFIG_COUNT = "1"
-   $env:GIT_CONFIG_KEY_0 = "http.extraheader"
-   $env:GIT_CONFIG_VALUE_0 = "AUTHORIZATION: basic $b64"
-   $env:GIT_HTTP_LOW_SPEED_LIMIT = "1000"
-   $env:GIT_HTTP_LOW_SPEED_TIME = "25"
-   git fetch origin main; git rebase origin/main; git push origin main
-   ```
+```powershell
+# 执行策略显示 Unrestricted，脚本仍会被拦（AuthorizationManager check failed），
+# 加 -ExecutionPolicy Bypass 最省事。
+powershell -ExecutionPolicy Bypass -File .\tools\push.ps1 -Message "feat: ..."
+```
 
-   推完用 `gh api repos/aaa1173188435/ai-digest/commits/main` 确认远端真的动了——不要相信 `$LASTEXITCODE` 在管道里的值。
+脚本做四件事：`git add/commit`（给了 `-Message` 时）→ `fetch` → 必要时 `rebase` → 带
+`http.extraheader` 推送。因为凭证助手会拉起 `sh` 而它在本机崩溃，所以认证走 header、
+不触发任何 helper；又因为 GitHub:443 时通时断，加了 `GIT_HTTP_LOW_SPEED_*` 让死连接
+25 秒失败而不是挂着。
 
-4. **PowerShell 传带空格/引号的参数给原生 exe 会被拆开**（`gh api --jq '.a + "x"'` 会报参数个数错误）。让 gh 输出 JSON 再用 `ConvertFrom-Json`。
+**判断成功只看 API，不看 `$LASTEXITCODE`**：这台机器上后者已经出现过「推送成功却报
+失败」和「推送失败却报成功」两种。脚本内部也是这么做的——所以它报成功时是真的成功。
+
+`git pull.rebase` / `rebase.autoStash` / `push.autoSetupRemote` 已设为全局默认。
+
+### 仍然要用 Python 的地方
+
+任何 HTTP 探测、下载、接口校验都用 Python。例如：
+
+```powershell
+.\.venv\Scripts\python.exe -c "import urllib.request;print(urllib.request.urlopen('https://example.com', timeout=15).status)"
+```
 
 ## 工作流分工
 
