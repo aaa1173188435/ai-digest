@@ -21,3 +21,7 @@ data/
 # generated output -- keep the folder, drop the artefacts
 public/*
 !public/.gitkeep
+
+# eval: generated artefacts (cases and labels are committed; reports are not)
+eval/reports/
+eval/label-*.html

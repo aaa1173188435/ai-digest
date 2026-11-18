@@ -1,0 +1,253 @@
+{
+  "case_id": "2026-11-18",
+  "created_at": "2026-11-18T04:54:30.575657Z",
+  "items": [
+    {
+      "id": "https://simonwillison.net/2026/Nov/17/external-sandboxes-for-coding-agents",
+      "title": "External sandboxes for coding agents",
+      "source": "Simon Willison",
+      "summary": "External sandboxes for coding agents I've been exploring new ways to sandbox code that is executed by agents, with a focus on making it safer to try out local models without worrying that a mistake or prompt injection attack might cause them to take damaging actions on a machine. I worked on this project with Prime Radiant , the AI research lab behind Superpowers and other projects . My post on the Prime Radiant blog introduces the external sandbox pattern, where code executed by the agent runs inside a dedicated sandbox while the agent itself lives outside of that sandbox. To demonstrate this pattern we've released three sandbox server implementations: external-sandbox-v86 runs a Node.js server which then uses v86 to run Alpine Linux inside WebAssembly. external-sandbox-container is a..."
+    },
+    {
+      "id": "https://simonwillison.net/2026/Nov/17/gpt62-astra-and-sol",
+      "title": "GPT‐6.2 Astra and GPT‐6.2 Sol",
+      "source": "Simon Willison",
+      "summary": "GPT‐6.2 Astra and GPT‐6.2 Sol OpenAI: We’re introducing GPT‐6.2 Astra, our new frontier model for your hardest projects, and GPT‐6.2 Sol, our efficient, versatile model for everyday work. They're available in the API as gpt-6.2-astra and gpt-6.2-sol . I shipped LLM 0.38 with support for the new models. 6.2 Astra is 80% of the price of 6 Astra - $8/MTok input and $40/MTok output, the same price as Claude Fable 5.2 (which was also 80% of its predecessor). 6 Astra and Fable 5 were both $10/$50. The cached price is an even bigger discount - $0.40/million compared to $1/million for the older model. This is great news for longer running agentic sessions. GPT-6.2 Sol is the same $2/$10 price as 6.1 Sol and 6 Sol - which are half the price of GPT-5.6 Sol ($4/$20). Here are the pelicans for..."
+    },
+    {
+      "id": "https://blog.cloudflare.com/quad9-withdrawal-from-france",
+      "title": "Quad9's withdrawal from France: A canary in the coal mine",
+      "source": "Hacker News 200+",
+      "summary": ""
+    },
+    {
+      "id": "https://calif.io/java4shell",
+      "title": "Java4Shell: RCE in OpenJDK when processing Base64",
+      "source": "Hacker News 200+",
+      "summary": ""
+    },
+    {
+      "id": "https://github.com/jquery/jquery/releases/tag/4.1.0",
+      "title": "jQuery 4.1.0",
+      "source": "Hacker News 200+",
+      "summary": ""
+    },
+    {
+      "id": "https://sciencenorway.no/culture-history-history-of-science/350-years-ago-this-man-discovered-that-light-has-a-finite-speed/2737969",
+      "title": "350 years ago, Ole Rømer discovered that light has a finite speed",
+      "source": "Hacker News 200+",
+      "summary": ""
+    },
+    {
+      "id": "https://solidjs.com/blog/solid-2-0-the-long-hold",
+      "title": "Solid 2.0",
+      "source": "Hacker News 200+",
+      "summary": ""
+    },
+    {
+      "id": "https://phrack.org/issues/73/introduction_md",
+      "title": "Phrack 73 Released",
+      "source": "Hacker News 200+",
+      "summary": ""
+    },
+    {
+      "id": "https://microsoft.ai/news/introducing-mai-code-2-and-mai-code-2-flash",
+      "title": "MAI Code 2 and Code 2 Flash",
+      "source": "Hacker News 200+",
+      "summary": ""
+    },
+    {
+      "id": "https://developer.apple.com/system-status",
+      "title": "Apple Services Down",
+      "source": "Hacker News 200+",
+      "summary": ""
+    },
+    {
+      "id": "https://openai.com/index/introducing-gpt-6-2-astra-sol",
+      "title": "Introducing GPT-6.2 Astra and Sol",
+      "source": "OpenAI",
+      "summary": "Introducing GPT‐6.2 Astra and Sol, with better professional outputs, coding, computer use, and efficiency at lower cost across ChatGPT Work, Codex, and the API."
+    },
+    {
+      "id": "https://ft.com/content/dbde7a30-548c-4f9d-a4be-7898a0c24dcf",
+      "title": "Nvidia stopped disclosing Singapore sales as revenues hit $104B",
+      "source": "Hacker News 200+",
+      "summary": ""
+    },
+    {
+      "id": "https://blog.google/innovation-and-ai/products/gemini-app/tasks-in-gemini-free-new-features",
+      "title": "Put Gemini to work for you",
+      "source": "Google AI",
+      "summary": "A user interface displaying the prompt \"What can I get done for you?\" above an input box containing placeholder text \"Describe a task\"."
+    },
+    {
+      "id": "https://simonwillison.net/2026/Nov/17/datasette-lite",
+      "title": "Running the full server-side Datasette Python app in the browser with service workers and Pyodide",
+      "source": "Simon Willison",
+      "summary": "Datasette Lite is my port of the Datasette Python application to run directly in the browser using WebAssembly and Pyodide . I've released a complete rewrite of Datasette Lite using service workers, and it's now almost indistinguishable from the real server-side application. You can now do all of the following, using a carefully crafted URL to lite.datasette.io : Load client-side Datasette to browse any SQLite database, JSON file, CSV file or SQL script Select a released version of Datasette to load from PyPI Load a specific commit, tag, or branch name from the Datasette GitHub repository Pick from over 100 versions of SQLite to use with Datasette Install additional Datasette plugins from PyPI or URLs to wheel files, including JavaScript visualization tools The ability to load specific..."
+    },
+    {
+      "id": "https://sebastianraschka.com/blog/2026/llm-pretraining-without-learning-rate-decay.html",
+      "title": "Pre-Training Without Learning Rate Decay",
+      "source": "Sebastian Raschka",
+      "summary": "A quick comparison of LLM pre-training recipes using cosine decay, warmup-stable-decay, or constant learning rates with checkpoint averaging."
+    },
+    {
+      "id": "https://latent.space/p/cloudflare",
+      "title": "Cloudflare Joins the Jevolution and Labels Itself a Neolab",
+      "source": "Latent Space",
+      "summary": "Cloudflare made its name speeding up the web. Now it's building System One models to make decisions and pull data in milliseconds."
+    },
+    {
+      "id": "https://technologyreview.com/2026/11/17/1148203/research-reports",
+      "title": "Research Reports",
+      "source": "MIT Tech Review",
+      "summary": "To access a report, click on the corresponding image below."
+    },
+    {
+      "id": "https://latent.space/p/ainews-perplexity-hits-a-1b-revenue-run-rate-up-4x-in-2026",
+      "title": "[AINews] Perplexity hits a $1B revenue run rate, up 4x in 2026",
+      "source": "Latent Space",
+      "summary": "November 16, 2026 — Computer gets Teammates, Perplexity ships Monitor API, and a new research lab launches."
+    },
+    {
+      "id": "https://openai.com/index/introducing-chatgpt-for-sales",
+      "title": "Introducing ChatGPT for Sales",
+      "source": "OpenAI",
+      "summary": "Explore the new Sales plugin and 30+ new and expanded partner plugins in ChatGPT to research prospects, prepare pitches, update your CRM, and move deals forward."
+    },
+    {
+      "id": "https://simonwillison.net/2026/Nov/17/go-proverbs",
+      "title": "Quoting Go Proverbs",
+      "source": "Simon Willison",
+      "summary": "A little copying is better than a little dependency. — Go Proverbs , via Tags: go , programming"
+    },
+    {
+      "id": "https://openai.com/index/strengthening-nato-allied-cyber-defences-ai",
+      "title": "Strengthening NATO and allied cyber defenses with AI",
+      "source": "OpenAI",
+      "summary": "How OpenAI is working with NATO and allied cyber agencies to help trusted defenders find vulnerabilities, test fixes and protect essential systems."
+    },
+    {
+      "id": "https://openai.com/index/astra-law-6-2",
+      "title": "Astra for Law leads in legal intelligence",
+      "source": "OpenAI",
+      "summary": "Astra for Law ranked first in a launch evaluation spanning 24 areas of law. Every ChatGPT Enterprise customer can now request access."
+    },
+    {
+      "id": "https://openai.com/index/introducing-openai-for-chile",
+      "title": "Introducing OpenAI for Chile",
+      "source": "OpenAI",
+      "summary": "OpenAI and the Government of Chile are partnering to support responsible AI adoption, build public-sector skills and help local startups develop AI applications."
+    },
+    {
+      "id": "https://simonwillison.net/2026/Nov/16/llm",
+      "title": "llm 0.37.3",
+      "source": "Simon Willison",
+      "summary": "Release: llm 0.37.3 A bug fix release for LLM , mainly to cover a problem with the most recent Homebrew package of the software. Homebrew now ships the latest SQLite, 3.54.1 , which includes a fix that broke LLM's logging code . Short version: in SQLite 3.54.0 the following SQL: select json_object('a', (select json_array(1))) Returns this: {\"a\":[1]} But in 3.54.1 the same query returns this: {\"a\":\"[1]\"} According to D. Richard Hipp : That was a bug fix. Per the documentation, (SELECT json_array(...)) returns SQL text, not JSON. Hence the 3.54.1 behavior is correct and 3.54.0 was a bug. The workaround looks like this: select json_object('a', json((select json_array(1)))) Tags: llm , webassembly , sqlite , generative-ai , ai , llms , d-richard-hipp"
+    },
+    {
+      "id": "https://latent.space/p/bfl",
+      "title": "Building Visual Intelligence — Andreas Blattmann & Dustin Podell, Black Forest Labs",
+      "source": "Latent Space",
+      "summary": "Black Forest Labs’ case for learning AGI from pixels, motion and sound."
+    },
+    {
+      "id": "https://technologyreview.com/2026/11/16/1148624/the-open-source-movement-wants-jensen-huang-back",
+      "title": "The open-source movement wants Jensen Huang back",
+      "source": "MIT Tech Review",
+      "summary": "This story originally appeared in The Algorithm, our weekly newsletter on AI. To get stories like this in your inbox first, sign up here. On Friday, a petition to reinstate Jensen Huang as CEO of Nvidia began circulating on social media, and by Monday it listed some notable signatories, including Elon Musk and several influential Nvidia..."
+    },
+    {
+      "id": "https://openai.com/index/expanding-chatgpt-for-academic-researchers",
+      "title": "Broadening access to AI for scientists",
+      "source": "OpenAI",
+      "summary": "We’re expanding our ChatGPT for Academic Researchers program to offer 200,000 researchers worldwide free access to our frontier models."
+    },
+    {
+      "id": "https://openai.com/index/strengthening-online-child-safety",
+      "title": "Strengthening the fight against online child sexual abuse with new tools and support",
+      "source": "OpenAI",
+      "summary": "New tools, practical guidance, and partnerships will help prevent, detect and respond to online child sexual exploitation and abuse."
+    },
+    {
+      "id": "https://technologyreview.com/2026/11/16/1148565/building-trustworthy-ai-by-fencing-it-in-not-predicting-it",
+      "title": "Building trustworthy AI by fencing it in, not predicting it",
+      "source": "MIT Tech Review",
+      "summary": "In October this year, OpenAI disclosed that two of its AI agents had switched off the systems built to monitor them. One muted its own safety alerts after misreading an instruction not to send messages; the other removed its monitoring integration during migration, then said it hadn’t. No rule had told the agents to do..."
+    },
+    {
+      "id": "https://blog.google/products-and-platforms/products/maps/ask-maps-holiday-travel-features-2026",
+      "title": "New Ask Maps features to help with holiday travel and prep",
+      "source": "Google AI",
+      "summary": "tbd"
+    },
+    {
+      "id": "https://technologyreview.com/2026/11/16/1146070/building-ai-that-can-work-across-the-enterprise",
+      "title": "Building AI that can work across the enterprise",
+      "source": "MIT Tech Review",
+      "summary": "For years, enterprises have approached AI as a series of discrete experiments. Now, as AI agents begin to move into the workflows that run the business, that model is starting to look inadequate. Organizations moving from isolated pilots toward AI agents and autonomous workflows are confronting a deeper challenge: rethinking how data, business processes, governance,..."
+    },
+    {
+      "id": "https://openai.com/index/science-at-the-frontier",
+      "title": "Science at the Frontier: How scientists use ChatGPT",
+      "source": "OpenAI",
+      "summary": "Explore how more than 1,800 scientists use ChatGPT in research. See findings on daily workflows, reported productivity, and expectations for discovery."
+    },
+    {
+      "id": "https://openai.com/business/customer-stories/revolut",
+      "title": "How Revolut raises ambition without lowering the bar",
+      "source": "OpenAI",
+      "summary": "Discover how Revolut uses OpenAI models and Codex to cut coding time by 30–60%, scale financial crime investigations, and innovate without compromising security."
+    },
+    {
+      "id": "https://openai.com/index/lvmh-media-division-partnership",
+      "title": "LVMH’s Media Division announces strategic partnership with OpenAI",
+      "source": "OpenAI",
+      "summary": "LVMH’s Media Division and OpenAI announce a partnership to support journalism with AI and make its publications more accessible through ChatGPT."
+    },
+    {
+      "id": "https://simonwillison.net/2026/Nov/15/datasette-maplibre",
+      "title": "datasette-maplibre 0.1a0",
+      "source": "Simon Willison",
+      "summary": "Release: datasette-maplibre 0.1a0 The first new Datasette geospatial plugin in quite a while! This one combines the excellent MapLibre GL library with OpenFreeMap , the free vector map server operated by Zsolt Ero (you should sponsor Zsolt on GitHub .) I built most of this with a single prompt to Claude Fable 5.2: Look at datasette-cluster-map and datasette-leaflet-geojson plugins, then look at ~/dev/tools/openfreemap-demo.html - then build a brand new Datasette plugin that uses maplibreGL and openfreemap and combines the features of those other two plugins - but be creative and think outside the box for other useful features the plugin might have \"Be creative and think outside the box\" resulted in a few neat ideas - my favorite is that it displays SVG previews of GeoJSON shapes, then..."
+    },
+    {
+      "id": "https://simonwillison.net/2026/Nov/15/datasette",
+      "title": "datasette 1.0a43",
+      "source": "Simon Willison",
+      "summary": "Release: datasette 1.0a43 I've been leaning hard into Claude Fable 5.2 to help knock things off the 1.0 milestone , which is now 53% complete. The biggest 1.0 item in this release is streaming support for output renderers - the built-in TSV and CSV export mechanisms now use this as well, and plugins can register themselves as capable of streaming every row in a table in one go via the new Response.stream() method. There are a couple of security fixes, one of which I deemed deserving of a GitHub advisory : private stored queries could be exposed, granting access to the title and SQL of the query (but not allowing that query to be executed). There are dozens of smaller improvements. The row page JSON representation finally has a design suitable for 1.0 . A new <datasette-copy-button> Web..."
+    },
+    {
+      "id": "https://simonwillison.net/2026/Nov/15/datasette-2",
+      "title": "datasette 0.65.6",
+      "source": "Simon Willison",
+      "summary": "Release: datasette 0.65.6 I backported a minor security fix from 1.0a43: Fixed a security issue where a database registered using add_database(db, name=..., route=...) with a route that differs from its name could be downloaded from /<route>.db by actors who were denied access to it. [...] Tags: security , datasette"
+    },
+    {
+      "id": "https://magazine.sebastianraschka.com/p/understanding-positional-embeddings",
+      "title": "Understanding Positional Embeddings in Modern LLMs",
+      "source": "Sebastian Raschka",
+      "summary": "The Methods Behind How LLMs Represent Token Positions"
+    },
+    {
+      "id": "https://simonwillison.net/2026/Nov/15/datasette-apps",
+      "title": "datasette-apps 0.4a0",
+      "source": "Simon Willison",
+      "summary": "Release: datasette-apps 0.4a0 Datasette Apps are sandboxed HTML and JavaScript applications that live inside Datasette - think Claude Artifacts, but these ones can run SQL queries against your data. 0.4a0 adds support for linking: you can link to an app with #fragments in the URL and the app can see and use those, plus supported URL schemes are reported back to Datasette Agent so it can help write apps that link to each other. This means you can have e.g. an app that shows details about a specific record, and a completely separate app that searches those records and links to their representations in the first app. Tags: datasette-agent , datasette-apps , datasette , urls"
+    },
+    {
+      "id": "https://simonwillison.net/2026/Nov/15/datasette-agent",
+      "title": "datasette-agent 0.6a0",
+      "source": "Simon Willison",
+      "summary": "Release: datasette-agent 0.6a0 Accumulated small fixes for Datasette Agent, my agent plugin for Datasette that lets you ask questions about your data. Most notably, it now adds an agent prompt directly to the Datasette homepage, with support for hash-mentions of tables and queries: Tags: datasette-agent , llm , datasette , llms , ai , generative-ai"
+    },
+    {
+      "id": "https://latent.space/p/ainews-the-no-ai-slop-manifesto",
+      "title": "[AINews] The No AI Slop Manifesto",
+      "source": "Latent Space",
+      "summary": "November 13, 2026 — AIE speakers unite to lay out how to fight slop."
+    }
+  ],
+  "notes": "frozen from 41 articles -> 41 clusters"
+}

@@ -154,6 +154,133 @@ def cmd_serve(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_eval_snapshot(args: argparse.Namespace) -> int:
+    """Freeze the current candidate pool so later runs can replay it."""
+    from .eval import dataset
+
+    settings = load_settings()
+    case_id = args.case_id or dataset.default_case_id()
+
+    with db.open_db(settings.database_path) as conn:
+        case = dataset.case_from_db(
+            conn,
+            case_id=case_id,
+            max_age_days=settings.max_age_days,
+            near_dup_threshold=settings.near_dup_threshold,
+        )
+
+    if not case.items:
+        print("no candidates in the window - run `ai-digest run` first")
+        return 1
+
+    path = dataset.save_json(case, settings.eval_dir / "cases" / f"{case_id}.json")
+    print(f"case {case_id}: {len(case.items)} items -> {path}")
+    print(f"next:  ai-digest eval label {path}")
+    return 0
+
+
+def cmd_eval_label(args: argparse.Namespace) -> int:
+    """Generate a self-contained labelling page for a frozen case."""
+    from .eval import dataset
+    from .eval.labeler import build_labeler_html
+
+    settings = load_settings()
+    case = dataset.load_case(Path(args.case))
+
+    out = settings.eval_dir / f"label-{case.case_id}.html"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(build_labeler_html(case), encoding="utf-8")
+
+    print(f"wrote {out}  ({len(case.items)} items)")
+    if not args.no_open:
+        import webbrowser
+
+        webbrowser.open(out.resolve().as_uri())
+    print(
+        "标注 → 点『导出 labels.json』→ 然后:"
+        f"\n  ai-digest eval score {args.case} <导出的 labels.json>"
+    )
+    return 0
+
+
+def cmd_eval_score(args: argparse.Namespace) -> int:
+    """Replay a case through the real ranker and score it against labels."""
+    import json
+
+    from .eval import dataset, runner
+
+    settings = load_settings()
+    if args.provider:
+        settings.llm_provider = args.provider
+    if args.k:
+        settings.top_n = args.k
+
+    case = dataset.load_case(Path(args.case))
+    labels = dataset.load_labels(Path(args.labels))
+
+    if labels.case_id != case.case_id:
+        print(f"case mismatch: case={case.case_id} labels={labels.case_id}")
+        return 1
+
+    coverage = labels.coverage(case)
+    report = asyncio.run(runner.evaluate_case(case, labels, settings, k=args.k))
+
+    path = dataset.save_report(report, settings.eval_dir / "reports")
+    print(f"\ncase {case.case_id} · {len(case.items)} items · provider {report['provider']}")
+    print(f"labels: {int(coverage * len(case.items))}/{len(case.items)} ({coverage:.0%})"
+          f" by {labels.labeler or 'unknown'}")
+    if coverage < 0.9:
+        print("  ! coverage below 90% - metrics use only labelled items as positives")
+
+    print("\nmetrics")
+    for key, value in report["metrics"].items():
+        print(f"  {key:<22} {value}")
+
+    # The numbers alone say whether it is good; the list below says *why*.
+    k = report["k"]
+    print(f"\ntop {k}")
+    for row in report["ranking"][:k]:
+        mark = "OK " if row["label"] == 1 else "·  "
+        print(f"  {row['rank']:>2} {mark} {row['score']:>5.1f}  {row['title'][:64]}")
+
+    missed = [
+        row
+        for row in report["ranking"][k:]
+        if row["label"] == 1
+    ]
+    if missed:
+        print(f"\nmissed relevant (rank > {k})")
+        for row in missed:
+            print(f"  {row['rank']:>2}     {row['score']:>5.1f}  {row['title'][:64]}")
+
+    unpicked = [row for row in report["ranking"][:k] if row["label"] == 0]
+    if unpicked:
+        print(f"\nshould not be published")
+        for row in unpicked:
+            print(f"  {row['rank']:>2}     {row['score']:>5.1f}  {row['title'][:64]}")
+
+    if args.baseline:
+        baseline = json.loads(Path(args.baseline).read_text(encoding="utf-8"))
+        print(f"\nvs {Path(args.baseline).name}")
+        for key, row in runner.compare(report, baseline).items():
+            arrow = "+" if row["delta"] > 0 else ("=" if row["delta"] == 0 else "")
+            print(
+                f"  {key:<22} {row['baseline']:>8} -> {row['current']:<8} {arrow}{row['delta']}"
+            )
+
+    print(f"\nreport: {path}")
+
+    if args.min_precision is not None:
+        precision = report["metrics"].get(f"precision@{report['k']}", 0.0)
+        if precision < args.min_precision:
+            print(
+                f"\nFAIL: precision@{report['k']} {precision} < {args.min_precision}"
+            )
+            return 1
+        print(f"\nOK: precision@{report['k']} {precision} >= {args.min_precision}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="ai-digest", description="Daily AI-news digest pipeline."
@@ -181,6 +308,29 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8000)
     serve.set_defaults(func=cmd_serve)
+
+    ev = sub.add_parser(
+        "eval", help="offline evaluation: freeze a case, label it, score the ranker"
+    )
+    ev_sub = ev.add_subparsers(dest="eval_command", required=True)
+
+    snap = ev_sub.add_parser("snapshot", help="freeze the current candidate pool")
+    snap.add_argument("--case-id", default=None)
+    snap.set_defaults(func=cmd_eval_snapshot)
+
+    lab = ev_sub.add_parser("label", help="generate the labelling page for a case")
+    lab.add_argument("case")
+    lab.add_argument("--no-open", action="store_true")
+    lab.set_defaults(func=cmd_eval_label)
+
+    sc = ev_sub.add_parser("score", help="replay a case and compute metrics")
+    sc.add_argument("case")
+    sc.add_argument("labels")
+    sc.add_argument("--provider", choices=["deepseek", "fake"])
+    sc.add_argument("--k", type=int, default=None)
+    sc.add_argument("--baseline", default=None, help="previous report json")
+    sc.add_argument("--min-precision", type=float, default=None)
+    sc.set_defaults(func=cmd_eval_score)
 
     return parser
 

@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     database_path: Path = Path("data/digest.db")
     sources_path: Path = Path("config/sources.yaml")
     output_dir: Path = Path("public")
+    eval_dir: Path = Path("eval")
 
     # -- ingest ------------------------------------------------------------
     fetch_timeout: float = 20.0
