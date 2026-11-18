@@ -322,6 +322,13 @@ def cmd_eval_score(args: argparse.Namespace) -> int:
             )
             return 1
         print(f"\nOK: precision@{report['k']} {precision} >= {args.min_precision}")
+
+    if args.min_lift is not None:
+        lift = report["metrics"].get("lift_over_random", 0.0)
+        if lift < args.min_lift:
+            print(f"\nFAIL: lift over random {lift} < {args.min_lift}")
+            return 1
+        print(f"\nOK: lift over random {lift} >= {args.min_lift}")
     return 0
 
 
@@ -382,6 +389,12 @@ def build_parser() -> argparse.ArgumentParser:
     sc.add_argument("--k", type=int, default=None)
     sc.add_argument("--baseline", default=None, help="previous report json")
     sc.add_argument("--min-precision", type=float, default=None)
+    sc.add_argument(
+        "--min-lift",
+        type=float,
+        default=None,
+        help="fail unless precision@k beats random by this factor (more robust than raw precision)",
+    )
     sc.set_defaults(func=cmd_eval_score)
 
     return parser

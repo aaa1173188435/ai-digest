@@ -90,3 +90,26 @@ class TestEvaluateRanking:
         # Documents the trade-off: partial labelling makes precision pessimistic.
         result = evaluate_ranking(["i1", "zzz"], {"i1": 1}, k=2)
         assert result["precision@2"] == 0.5
+
+
+class TestLiftOverRandom:
+    def test_random_baseline_reflects_relevance_rate(self) -> None:
+        # 3 of 10 relevant -> random precision is 0.3 at any k.
+        result = evaluate_ranking(["i1", "i2", "i4"], LABELS, k=3)
+        assert result["random_precision@3"] == pytest.approx(0.3)
+
+    def test_lift_is_precision_over_random(self) -> None:
+        # Top 3 are all relevant -> precision 1.0, lift 1/0.3 = 3.333
+        result = evaluate_ranking(["i1", "i2", "i3"], LABELS, k=3)
+        assert result["lift_over_random"] == pytest.approx(3.333, abs=1e-3)
+
+    def test_liberal_labels_shrink_the_lift(self) -> None:
+        # Same perfect ranking, but if most of the pool is "relevant" the
+        # ranking is doing much less work.
+        liberal = {f"i{i}": (1 if i <= 9 else 0) for i in range(1, 11)}
+        strict = {f"i{i}": (1 if i <= 2 else 0) for i in range(1, 11)}
+        ranked = ["i1", "i2", "i3"]
+
+        liberal_lift = evaluate_ranking(ranked, liberal, k=3)["lift_over_random"]
+        strict_lift = evaluate_ranking(ranked, strict, k=3)["lift_over_random"]
+        assert liberal_lift < strict_lift

@@ -88,13 +88,27 @@ def evaluate_ranking(
     scores: dict[str, float] | None = None,
 ) -> dict:
     """All metrics for one ranked list, as a plain dict (JSON-serialisable)."""
+    precision = precision_at_k(ranked_ids, labels, k)
+    relevant_total = sum(1 for v in labels.values() if v == 1)
+    # Denominator is the candidate pool, not the length of the ranked list: a
+    # caller may hand in a truncated ranking while the labels cover the whole pool.
+    pool = max(len(ranked_ids), len(labels)) or 1
+
+    # Precision alone is uninterpretable without knowing how much of the pool
+    # is relevant at all: if 63% of candidates qualify, a random 12 already
+    # scores 0.63 and "0.75" is barely better than guessing.
+    random_precision = relevant_total / pool
+    lift = (precision / random_precision) if random_precision else 0.0
+
     result: dict = {
-        f"precision@{k}": round(precision_at_k(ranked_ids, labels, k), 4),
+        f"precision@{k}": round(precision, 4),
         f"recall@{k}": round(recall_at_k(ranked_ids, labels, k), 4),
         f"ndcg@{k}": round(ndcg_at_k(ranked_ids, labels, k), 4),
+        f"random_precision@{k}": round(random_precision, 4),
+        "lift_over_random": round(lift, 3),
         "pool_size": len(ranked_ids),
         "labelled": len(labels),
-        "relevant_total": sum(1 for v in labels.values() if v == 1),
+        "relevant_total": relevant_total,
     }
     if scores:
         result.update(mean_score_by_relevance(ranked_ids, scores, labels))
