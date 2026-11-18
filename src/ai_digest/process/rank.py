@@ -127,8 +127,14 @@ async def enrich_articles(
     *,
     batch_size: int = 8,
     concurrency: int = 3,
+    system_prompt: str = SYSTEM_PROMPT,
 ) -> tuple[dict[str, ItemScore], dict[str, int]]:
-    """Enrich articles in batches. Never raises: failures degrade to heuristics."""
+    """Enrich articles in batches. Never raises: failures degrade to heuristics.
+
+    ``system_prompt`` is overridable because the evaluation harness needs a
+    deliberately *neutral* summarisation for its labelling UI -- see
+    :mod:`ai_digest.eval.annotate`.
+    """
     stats = {"llm_calls": 0, "llm_failures": 0, "heuristic_items": 0}
     if not articles:
         return {}, stats
@@ -143,7 +149,7 @@ async def enrich_articles(
         async with semaphore:
             try:
                 data = await llm.complete_json(
-                    system=SYSTEM_PROMPT, user=build_user_prompt(batch)
+                    system=system_prompt, user=build_user_prompt(batch)
                 )
                 stats["llm_calls"] += 1
                 scores, missing = _validate(batch, data)

@@ -179,19 +179,63 @@ def cmd_eval_snapshot(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_eval_annotate(args: argparse.Namespace) -> int:
+    """Generate Chinese gists for every item so labelling is a content judgement."""
+    from .eval import dataset
+    from .eval.annotate import annotate_case
+
+    settings = load_settings()
+    if args.provider:
+        settings.llm_provider = args.provider
+
+    case_path = Path(args.case)
+    case = dataset.load_case(case_path)
+
+    print(f"annotating {len(case.items)} items with {settings.llm_provider} ...")
+    annotations = asyncio.run(annotate_case(case, settings))
+
+    out = dataset.save_json(annotations, dataset.annotations_path(case_path))
+    missed = [
+        item.id for item in case.items if item.id not in annotations.items
+    ]
+    print(
+        f"wrote {out}  coverage {annotations.coverage(case):.0%} "
+        f"({len(annotations.items)}/{len(case.items)})"
+    )
+    if missed:
+        print(f"  ! {len(missed)} items got no gist and will show a warning in the page")
+    print(f"next:  ai-digest eval label {args.case}")
+    return 0 if not missed else 0
+
+
 def cmd_eval_label(args: argparse.Namespace) -> int:
     """Generate a self-contained labelling page for a frozen case."""
     from .eval import dataset
     from .eval.labeler import build_labeler_html
 
     settings = load_settings()
-    case = dataset.load_case(Path(args.case))
+    case_path = Path(args.case)
+    case = dataset.load_case(case_path)
+
+    annotations = None
+    zh_path = args.zh and Path(args.zh) or dataset.annotations_path(case_path)
+    if zh_path.exists():
+        try:
+            annotations = dataset.load_annotations(zh_path)
+        except Exception as exc:  # noqa: BLE001 - a bad sidecar must not block labelling
+            print(f"warning: could not read {zh_path}: {exc}")
+    else:
+        print(
+            f"note: no Chinese gists yet ({zh_path.name}). "
+            "Run `ai-digest eval annotate <case>` first for a much easier labelling pass."
+        )
 
     out = settings.eval_dir / f"label-{case.case_id}.html"
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(build_labeler_html(case), encoding="utf-8")
+    out.write_text(build_labeler_html(case, annotations), encoding="utf-8")
 
-    print(f"wrote {out}  ({len(case.items)} items)")
+    covered = annotations.coverage(case) if annotations else 0.0
+    print(f"wrote {out}  ({len(case.items)} items, gists {covered:.0%})")
     if not args.no_open:
         import webbrowser
 
@@ -318,8 +362,16 @@ def build_parser() -> argparse.ArgumentParser:
     snap.add_argument("--case-id", default=None)
     snap.set_defaults(func=cmd_eval_snapshot)
 
+    ann = ev_sub.add_parser(
+        "annotate", help="generate Chinese gists so labelling is about content"
+    )
+    ann.add_argument("case")
+    ann.add_argument("--provider", choices=["deepseek", "fake"])
+    ann.set_defaults(func=cmd_eval_annotate)
+
     lab = ev_sub.add_parser("label", help="generate the labelling page for a case")
     lab.add_argument("case")
+    lab.add_argument("--zh", default=None, help="annotation sidecar (auto-detected)")
     lab.add_argument("--no-open", action="store_true")
     lab.set_defaults(func=cmd_eval_label)
 

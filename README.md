@@ -141,17 +141,29 @@ Hacker News 的 RSS 把 `Article URL: … Points: 1138 # Comments: 720` 塞进 `
 
 没有评测集的调参是猜的。这一层解决的问题是：**改了 prompt 之后，是变好了，还是只是换了个错法？**
 
-### 三个命令
+### 四个命令
 
 ```bash
-ai-digest eval snapshot                    # 冻结当天的候选池 → eval/cases/<date>.json
-ai-digest eval label eval/cases/<date>.json  # 生成标注页，浏览器里点完导出 labels.json
-ai-digest eval score eval/cases/<date>.json labels-<date>.json  # 重放并算分
+ai-digest eval snapshot                                  # 冻结候选池 → eval/cases/<date>.json
+ai-digest eval annotate eval/cases/<date>.json           # 生成中文摘要（标注用）
+ai-digest eval label    eval/cases/<date>.json           # 生成标注页
+ai-digest eval score    eval/cases/<date>.json labels-<date>.json
 ```
 
 `snapshot` 冻结的是**文本本身**，不是分数。之后每次 `score` 都用当前代码和 prompt 重新打分——所以它测的是"现在的系统"，不是"那天的历史输出"。这是能做 A/B 的前提：明天的 feed 是另一批文章，不冻结就没法对比。
 
 `score` 还会打印逐条明细（上了榜的、漏掉的、不该上的），因为**数字只告诉你「好不好」，明细才告诉你「错在哪」**。
+
+### 标注页的两个反锚定设计
+
+用英文标题标注，实际是在考标注者的阅读速度和背景知识，测的就不是内容质量了。所以 `annotate` 会给每条生成中文摘要。但这里有两个容易做错的地方：
+
+**1. 摘要必须是中立的，不能用排序 prompt 生成。**
+第一版直接复用了排序 prompt，生成的摘要是「Quad9 退出法国……**与 AI 技术无关**」「jQuery 4.1.0……**属前端库更新日志**」——把模型自己的相关性判断写进了材料里。标注者看到这种句子，就不再是独立判断，而是在确认模型的判断，指标会被系统性抬高。
+所以 `annotate` 用一个单独的 prompt，明确禁止「重要」「无关」「值得」这类措辞，只允许陈述内容。
+
+**2. 页面不显示模型给的分。**
+同理，看到「95 分」的标注者已经不是独立标注了。`AnnotatedItem` 数据结构里根本没有 score 字段，并且有一条测试守着这一点——防止以后有人"顺手"把它加回来。
 
 ### 指标
 

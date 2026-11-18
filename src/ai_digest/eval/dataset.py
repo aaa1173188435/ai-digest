@@ -54,6 +54,30 @@ class EvalLabels(BaseModel):
         return round(labelled / len(case.items), 3)
 
 
+class AnnotatedItem(BaseModel):
+    """A Chinese gist, generated for the labeller -- never used for ranking.
+
+    Deliberately carries no score. Showing the model's score on the labelling
+    page would anchor the human and destroy the point of labelling.
+    """
+
+    one_liner: str = ""
+    bullets: list[str] = Field(default_factory=list)
+    topic: str = "other"
+
+
+class CaseAnnotations(BaseModel):
+    case_id: str
+    created_at: datetime = Field(default_factory=utcnow)
+    provider: str = ""
+    items: dict[str, AnnotatedItem] = Field(default_factory=dict)
+
+    def coverage(self, case: EvalCase) -> float:
+        if not case.items:
+            return 0.0
+        return round(sum(1 for i in case.items if i.id in self.items) / len(case.items), 3)
+
+
 def save_json(model: BaseModel, path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(model.model_dump_json(indent=2), encoding="utf-8")
@@ -66,6 +90,20 @@ def load_case(path: Path) -> EvalCase:
 
 def load_labels(path: Path) -> EvalLabels:
     return EvalLabels.model_validate_json(Path(path).read_text(encoding="utf-8"))
+
+
+def load_annotations(path: Path) -> CaseAnnotations:
+    return CaseAnnotations.model_validate_json(Path(path).read_text(encoding="utf-8"))
+
+
+def annotations_path(case_path: Path) -> Path:
+    """``eval/cases/2026-11-18.json`` -> ``eval/cases/2026-11-18.zh.json``.
+
+    Kept beside the case instead of inside it: the case is a frozen *input*
+    snapshot, and gluing model output into it would blur what is being tested.
+    """
+    case_path = Path(case_path)
+    return case_path.with_suffix("").with_name(case_path.stem + ".zh.json")
 
 
 def case_from_db(
