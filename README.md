@@ -194,11 +194,16 @@ ai-digest render      # 从数据库重建整个站点
 ai-digest serve       # 浏览器看效果
 ```
 
-推送到 GitHub 后，页面要等下一次定时任务才会更新；想立刻看到就手动触发一次：
+推送到 GitHub 后，`rebuild-site` 工作流会自动从缓存的数据库重新生成并部署——不抓取、不调模型、零成本，约两分钟上线。想手动触发就 `gh workflow run rebuild-site.yml`。
 
-```bash
-gh workflow run digest.yml
-```
+**两条工作流的分工：**
+
+| 工作流 | 触发 | 做什么 | 成本 |
+|---|---|---|---|
+| `daily-digest` | 每天 06:00 / 手动 | 抓取 → 去重 → LLM 排序 → 部署 | ~$0.0045 |
+| `rebuild-site` | push 到 main / 手动 | 从缓存数据库重建页面 → 部署 | 零 |
+
+两者共用同一个 Pages 并发组，不会互相覆盖。
 
 ---
 

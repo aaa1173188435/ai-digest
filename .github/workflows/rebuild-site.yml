@@ -1,0 +1,84 @@
+name: rebuild-site
+
+# Deploy-only workflow: rebuild the site from the cached database and publish.
+# No fetching, no LLM, no cost. This exists so a CSS tweak can be previewed on
+# the live site in ~2 minutes instead of waiting for the 06:00 run.
+#
+# Tests are deliberately not run here. This path cannot change ingestion or
+# ranking behaviour, and `daily-digest` is the gate that runs pytest.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "config/**"
+      - "pyproject.toml"
+      - ".github/workflows/rebuild-site.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Same group as daily-digest: GitHub Pages must never receive two concurrent
+# deployments, so the two workflows queue behind each other.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.render.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install
+        run: pip install -e .
+
+      # Read-only: this workflow must not create new cache entries and drown
+      # out the real database with empty ones.
+      - name: Restore digest database
+        uses: actions/cache/restore@v4
+        with:
+          path: data
+          key: digest-db-${{ github.run_id }}
+          restore-keys: |
+            digest-db-
+
+      - name: Rebuild site from database
+        id: render
+        run: |
+          if [ ! -f data/digest.db ]; then
+            echo "::notice title=Nothing to render::No cached database yet. The next daily run will create one; skipping deploy."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          python -m ai_digest render
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Upload site
+        if: steps.render.outputs.skip != 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+  deploy:
+    needs: build
+    if: needs.build.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
