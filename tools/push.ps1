@@ -56,7 +56,7 @@ $env:GIT_HTTP_LOW_SPEED_LIMIT = "1000"
 $env:GIT_HTTP_LOW_SPEED_TIME = "25"
 
 $target = (git rev-parse HEAD).Substring(0, 7)
-$pushed = $false
+$remoteHead = ""
 
 try {
     for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
@@ -72,8 +72,18 @@ try {
                 }
             }
             git push $Remote $Branch 2>&1 | Out-Null
-            if ($LASTEXITCODE -eq 0) { $pushed = $true; break }
         }
+
+        # Success is decided by the API, never by $LASTEXITCODE: through a
+        # pipeline on this machine it has already reported failure for a push
+        # that landed, and success for one that did not.
+        try {
+            $remoteHead = (gh api "repos/$slug/commits/$Branch" | ConvertFrom-Json).sha
+        } catch {
+            $remoteHead = ""
+        }
+        if ($remoteHead -and $remoteHead.StartsWith($target)) { break }
+
         Write-Host "attempt $attempt failed, retrying..."
         Start-Sleep -Seconds 6
     }
@@ -83,15 +93,9 @@ try {
         Env:\GIT_HTTP_LOW_SPEED_TIME -ErrorAction SilentlyContinue
 }
 
-if (-not $pushed) {
-    throw "push failed after $Attempts attempts. GitHub:443 is probably down; try again later."
-}
-
-# Trust the API, not the exit code: $LASTEXITCODE through a pipeline lies here.
-$remoteHead = (gh api "repos/$slug/commits/$Branch" | ConvertFrom-Json).sha
-if ($remoteHead.StartsWith($target)) {
+if ($remoteHead -and $remoteHead.StartsWith($target)) {
     Write-Host "pushed $target -> $slug@$Branch (confirmed via API)"
 } else {
-    Write-Host "push reported success but remote is at $($remoteHead.Substring(0,7))"
-    exit 1
+    Write-Host "remote is at $(if ($remoteHead) { $remoteHead.Substring(0,7) } else { 'unknown' }), wanted $target"
+    throw "push failed after $Attempts attempts. GitHub:443 is probably down; try again later."
 }
