@@ -21,11 +21,28 @@ from ..process.normalize import canonicalize_url, normalize_text
 _TAG_RE = re.compile(r"<[^>]+>")
 _SCRIPT_RE = re.compile(r"<(script|style)[^>]*>.*?</\1>", re.IGNORECASE | re.DOTALL)
 
+# Hacker News' RSS puts its own bookkeeping in <description> instead of a
+# summary. It is not about the article, so it must not reach the model -- see
+# the "OpenAI / Astra" incident in the README.
+_HN_META_RE = re.compile(
+    r"Article URL:\s*\S+"
+    r"|Comments URL:\s*\S+"
+    r"|Points:\s*\d+"
+    r"|#\s*Comments:\s*\d+",
+    re.IGNORECASE,
+)
+
+
+def strip_feed_metadata(text: str) -> str:
+    """Drop feed plumbing that is not part of the article."""
+    return _HN_META_RE.sub(" ", text or "")
+
 
 def strip_html(text: str, limit: int = 800) -> str:
     text = _SCRIPT_RE.sub(" ", text or "")
     text = _TAG_RE.sub(" ", text)
     text = html.unescape(text)
+    text = strip_feed_metadata(text)
     text = normalize_text(text)
     if len(text) > limit:
         text = text[:limit].rsplit(" ", 1)[0] + "..."

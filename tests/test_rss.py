@@ -63,3 +63,18 @@ def test_strips_markup_from_title() -> None:
     </channel></rss>"""
     articles = parse_feed(feed, SOURCE, limit=5)
     assert articles[0].title == "Intelligence is Free Now What? A & B"
+
+
+def test_strips_aggregator_metadata_from_summary() -> None:
+    # Hacker News puts its own bookkeeping in <description>; feeding it to the
+    # model produced "the HN discussion is very active" as a summary.
+    feed = b"""<?xml version="1.0" encoding="utf-8"?>
+    <rss version="2.0"><channel><title>T</title>
+    <item>
+      <title>Some launch</title>
+      <link>https://x.example/2</link>
+      <description>Article URL: https://x.example/2 Comments URL: https://news.ycombinator.com/item?id=1 Points: 1138 # Comments: 720</description>
+    </item>
+    </channel></rss>"""
+    articles = parse_feed(feed, SOURCE, limit=5)
+    assert articles[0].summary == ""

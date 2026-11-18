@@ -117,7 +117,7 @@ async def test_render_markdown_contains_items(settings, fetch) -> None:
 # -- ranking: diversity ----------------------------------------------------
 
 
-def _fake_article(index: int, source: str) -> Article:
+def _fake_article(index: int, source: str, weight: float = 1.0) -> Article:
     url = f"https://{source.lower().replace(' ', '-')}.example/{index}"
     return Article(
         source=source,
@@ -127,6 +127,7 @@ def _fake_article(index: int, source: str) -> Article:
         canonical_url=url,
         content_hash=f"hash-{url}",
         simhash_hex="0" * 16,
+        source_weight=weight,
     )
 
 
@@ -225,3 +226,46 @@ def test_undated_articles_fall_back_to_fetch_time(settings) -> None:
         )
 
     assert [a.title for a in loaded] == ["Title 3"]
+
+
+# -- conflict resolution when several feeds link to the same URL -----------
+
+
+def _same_url_pair(order: str) -> list[Article]:
+    """One publisher entry and one aggregator entry pointing at the same URL."""
+    publisher = _fake_article(1, "OpenAI", weight=1.3)
+    publisher.summary = "We are introducing a new frontier model."
+    aggregator = _fake_article(1, "HN", weight=0.8)
+    aggregator.summary = "Article URL: https://x.example/1 Points: 1138"
+
+    # Collapse both onto one canonical URL, as happens in production.
+    aggregator.canonical_url = publisher.canonical_url
+    aggregator.url = publisher.url
+    return [publisher, aggregator] if order == "publisher_first" else [aggregator, publisher]
+
+
+def test_lower_weight_feed_cannot_overwrite_publisher(settings) -> None:
+    with db.open_db(settings.database_path) as conn:
+        db.save_articles(conn, _same_url_pair("publisher_first"))
+        row = conn.execute("SELECT source, summary, source_weight FROM articles").fetchone()
+
+    assert row["source"] == "OpenAI"
+    assert row["summary"].startswith("We are introducing")
+    assert row["source_weight"] == 1.3
+
+
+def test_publisher_wins_even_when_seen_second(settings) -> None:
+    with db.open_db(settings.database_path) as conn:
+        db.save_articles(conn, _same_url_pair("aggregator_first"))
+        row = conn.execute("SELECT source, summary FROM articles").fetchone()
+
+    assert row["source"] == "OpenAI"
+    assert row["summary"].startswith("We are introducing")
+
+
+def test_same_url_still_yields_one_row(settings) -> None:
+    with db.open_db(settings.database_path) as conn:
+        db.save_articles(conn, _same_url_pair("publisher_first"))
+        count = conn.execute("SELECT COUNT(*) AS n FROM articles").fetchone()["n"]
+
+    assert count == 1

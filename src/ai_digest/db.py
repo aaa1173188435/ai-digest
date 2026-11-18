@@ -143,10 +143,21 @@ def save_articles(conn: sqlite3.Connection, articles: list[Article]) -> tuple[in
              content_hash, simhash_hex, source_weight, tags, fetched_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(canonical_url) DO UPDATE SET
-            title       = excluded.title,
-            summary     = excluded.summary,
-            fetched_at  = excluded.fetched_at,
-            published_at = COALESCE(excluded.published_at, articles.published_at)
+            -- The same URL reaches us from several feeds (an aggregator and the
+            -- publisher both link to the article). The more authoritative feed
+            -- must win, or a community aggregator's bookkeeping overwrites the
+            -- publisher's own title and summary.
+            source        = CASE WHEN excluded.source_weight > articles.source_weight
+                                 THEN excluded.source ELSE articles.source END,
+            title         = CASE WHEN excluded.source_weight > articles.source_weight
+                                 THEN excluded.title ELSE articles.title END,
+            summary       = CASE WHEN excluded.source_weight > articles.source_weight
+                                 THEN excluded.summary ELSE articles.summary END,
+            tags          = CASE WHEN excluded.source_weight > articles.source_weight
+                                 THEN excluded.tags ELSE articles.tags END,
+            source_weight = MAX(excluded.source_weight, articles.source_weight),
+            published_at  = COALESCE(articles.published_at, excluded.published_at),
+            fetched_at    = excluded.fetched_at
         """,
         rows,
     )
