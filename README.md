@@ -175,6 +175,33 @@ ai-digest run --provider fake
 
 ---
 
+## 改前端
+
+页面由 Jinja2 模板生成，改这三个文件：
+
+```
+src/ai_digest/render/templates/digest.html.j2    日报页
+src/ai_digest/render/templates/archive.html.j2   归档页
+src/ai_digest/render/templates/style.css         样式（内联进 <style>）
+```
+
+**不要改 `public/` 里的 HTML。** 那个目录是产物、被 gitignore，而且每次运行都从数据库全量重建——手改的内容下一次运行就没了。
+
+改样式时的循环是这样，**不联网、不调模型、0.3 秒**：
+
+```bash
+ai-digest render      # 从数据库重建整个站点
+ai-digest serve       # 浏览器看效果
+```
+
+推送到 GitHub 后，页面要等下一次定时任务才会更新；想立刻看到就手动触发一次：
+
+```bash
+gh workflow run digest.yml
+```
+
+---
+
 ## 配置
 
 所有 `settings.py` 里的字段都能用同名环境变量覆盖。常用项：

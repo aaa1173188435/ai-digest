@@ -1,7 +1,8 @@
 """Command line entry point.
 
-Three verbs, intentionally: ``run`` does the work, ``status`` tells you what
-happened last time, ``serve`` lets you look at the output before pushing it.
+Four verbs, intentionally: ``run`` does the work, ``render`` rebuilds the site
+from the database without spending money, ``status`` tells you what happened
+last time, ``serve`` lets you look at the output before pushing it.
 """
 
 from __future__ import annotations
@@ -13,7 +14,6 @@ import sys
 from pathlib import Path
 
 from . import db
-from .models import Digest
 from .pipeline import run_digest
 from .render.html import rebuild_site
 from .render.markdown import render_markdown
@@ -30,15 +30,21 @@ def _configure_logging(verbose: bool) -> None:
     )
 
 
-def _write_outputs(settings: Settings, digest: Digest) -> list[Path]:
+def _rebuild_outputs(settings: Settings) -> tuple[list[Path], int]:
+    """Regenerate the whole site (and per-day markdown) from the database."""
     settings.output_dir.mkdir(parents=True, exist_ok=True)
     with db.open_db(settings.database_path) as conn:
+        digests = db.list_digests(conn)
         paths = rebuild_site(conn, settings.output_dir)
 
-    md_path = settings.output_dir / f"digest-{digest.digest_date.isoformat()}.md"
-    md_path.write_text(render_markdown(digest), encoding="utf-8")
-    paths.append(md_path)
-    return paths
+        for digest in digests:
+            md_path = (
+                settings.output_dir / f"digest-{digest.digest_date.isoformat()}.md"
+            )
+            md_path.write_text(render_markdown(digest), encoding="utf-8")
+            paths.append(md_path)
+
+    return paths, len(digests)
 
 
 def cmd_run(args: argparse.Namespace) -> int:
@@ -55,7 +61,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     if args.no_render:
         log.info("rendered output skipped (--no-render)")
     else:
-        paths = _write_outputs(settings, digest)
+        paths, _ = _rebuild_outputs(settings)
         for path in paths:
             log.info("wrote %s", path)
 
@@ -65,6 +71,35 @@ def cmd_run(args: argparse.Namespace) -> int:
         f"去重后 {digest.stats.get('after_dedupe', 0)} · "
         f"${digest.stats.get('estimated_cost_usd', 0):.4f}"
     )
+    return 0
+
+
+def cmd_render(args: argparse.Namespace) -> int:
+    """Rebuild the static site from the existing database.
+
+    No network, no LLM: this is the edit-preview loop for templates and CSS.
+    Running the full pipeline to look at a colour change would cost an API call
+    and 17 seconds every time.
+    """
+    settings = load_settings()
+    if args.out_dir:
+        settings.output_dir = Path(args.out_dir)
+
+    if not settings.database_path.exists():
+        print(f"no database at {settings.database_path} - run `ai-digest run` first")
+        return 1
+
+    with db.open_db(settings.database_path) as conn:
+        digests = db.list_digests(conn)
+
+    if not digests:
+        print("database has no digests yet - run `ai-digest run` first")
+        return 1
+
+    paths, count = _rebuild_outputs(settings)
+    for path in paths:
+        log.info("wrote %s", path)
+    print(f"rebuilt {len(paths)} files from {count} digest(s) -> {settings.output_dir}")
     return 0
 
 
@@ -135,6 +170,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     status = sub.add_parser("status", help="show database and run history")
     status.set_defaults(func=cmd_status)
+
+    render = sub.add_parser(
+        "render", help="rebuild the site from the database (no fetch, no LLM)"
+    )
+    render.add_argument("--out-dir")
+    render.set_defaults(func=cmd_render)
 
     serve = sub.add_parser("serve", help="preview the generated site locally")
     serve.add_argument("--host", default="127.0.0.1")
