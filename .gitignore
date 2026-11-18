@@ -27,3 +27,7 @@ public/*
 eval/reports/*
 !eval/reports/summary.md
 eval/label-*.html
+
+# IDE
+.idea/
+*.iml

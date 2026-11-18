@@ -23,7 +23,11 @@ param(
     [int]$Attempts = 6
 )
 
-$ErrorActionPreference = "Stop"
+# Deliberately "Continue", not "Stop": in Windows PowerShell 5.1 a native
+# command writing to stderr becomes an ErrorRecord, and with "Stop" a plain
+# `git fetch` that merely warns would abort the script. Correctness is enforced
+# with explicit $LASTEXITCODE checks instead.
+$ErrorActionPreference = "Continue"
 
 if ($Message) {
     git add -A
