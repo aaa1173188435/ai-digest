@@ -232,10 +232,15 @@ def cmd_eval_label(args: argparse.Namespace) -> int:
 
     out = settings.eval_dir / f"label-{case.case_id}.html"
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(build_labeler_html(case, annotations), encoding="utf-8")
+    out.write_text(
+        build_labeler_html(case, annotations, slots=settings.top_n), encoding="utf-8"
+    )
 
     covered = annotations.coverage(case) if annotations else 0.0
-    print(f"wrote {out}  ({len(case.items)} items, gists {covered:.0%})")
+    print(
+        f"wrote {out}  ({len(case.items)} items, gists {covered:.0%}, "
+        f"rubric: 只有 {settings.top_n} 个位置)"
+    )
     if not args.no_open:
         import webbrowser
 

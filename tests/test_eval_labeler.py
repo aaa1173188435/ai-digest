@@ -131,3 +131,32 @@ def test_annotations_path_sits_beside_case(tmp_path) -> None:
     case_path = tmp_path / "cases" / "2026-11-18.json"
     assert annotations_path(case_path).name == "2026-11-18.zh.json"
     assert annotations_path(case_path).parent == case_path.parent
+
+
+# -- rubric: forced choice, not "is this worth reading" --------------------
+
+
+def test_rubric_asks_for_a_forced_choice() -> None:
+    html = build_labeler_html(make_case(), None, slots=12)
+    assert "这条必须占一个位置吗" in html
+    assert "只有 12 个位置" in html
+    assert "必须留" in html
+    assert "可以不看" in html
+
+
+def test_rubric_storage_is_versioned() -> None:
+    """v1 ('worth reading') labels must not resurface under the v2 question."""
+    html = build_labeler_html(make_case(), None, slots=12)
+    assert "aidigest-labels-rubric2-" in html
+    assert 'aidigest-labels-" ' not in html
+
+
+def test_export_filename_is_versioned() -> None:
+    html = build_labeler_html(make_case(), None, slots=12)
+    assert '-rubric2.json' in html
+
+
+def test_slot_budget_is_rendered() -> None:
+    html = build_labeler_html(make_case(), None, slots=7)
+    assert "必须留 0 / 7" in html
+    assert "const SLOTS = 7;" in html

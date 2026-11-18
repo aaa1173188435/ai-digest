@@ -38,6 +38,10 @@ _TEMPLATE = """<!doctype html>
   h1 { font-size:16px; margin:0; font-weight:600; }
   .progress { color:var(--muted); font-size:14px;
               font-family:ui-monospace, Menlo, monospace; }
+  .selected { font-size:13px; padding:2px 8px; border-radius:4px;
+              background:var(--chip); color:var(--muted);
+              font-family:ui-monospace, Menlo, monospace; }
+  .selected.over { background:#fdecea; color:var(--no); font-weight:600; }
   .bar { flex:1; min-width:120px; height:6px; background:var(--chip);
          border-radius:3px; overflow:hidden; }
   .bar > i { display:block; height:100%; width:0; background:var(--yes); }
@@ -72,15 +76,18 @@ _TEMPLATE = """<!doctype html>
 <header>
   <h1>标注 · __CASE_ID_TEXT__</h1>
   <span class="progress" id="progress">0 / 0</span>
+  <span class="selected" id="selected">必须留 0 / __SLOTS__</span>
   <div class="bar"><i id="bar"></i></div>
   <button id="export" class="primary">导出 labels.json</button>
   <button id="reset">清空</button>
 </header>
 <main>
   <p class="hint">
-    问题只有一个：<b>这条内容，一个做 AI 工程的人今天值得花两分钟读吗？</b><br>
-    广告、招聘、纯产品促销、与 AI 无关的内容（比如前端库发版）→ 不值得。<br>
-    键盘 <kbd>1</kbd> = 值得，<kbd>2</kbd> = 不值得，<kbd>u</kbd> = 撤销。
+    假设今天的简报<b>只有 __SLOTS__ 个位置</b>，候选有 __TOTAL__ 条。<br>
+    对每一条问自己：<b>这条必须占一个位置吗？</b><br>
+    <b>必须留</b> = 少了它，今天的简报明显变差。<b>可以不看</b> = 晚几天看也不亏。<br>
+    选满 __SLOTS__ 条之后还没标完，说明你的标准太松了——回去把最弱的几条改掉。<br>
+    键盘 <kbd>1</kbd> = 必须留，<kbd>2</kbd> = 可以不看，<kbd>u</kbd> = 撤销。
   </p>
   __BANNER__
   <div id="cards"></div>
@@ -89,7 +96,10 @@ _TEMPLATE = """<!doctype html>
 <script>
 const CASE_ID = __CASE_ID__;
 const ITEMS = __ITEMS__;
-const KEY = "aidigest-labels-" + CASE_ID;
+const SLOTS = __SLOTS__;
+// Rubric-versioned key: v1 labels ("worth reading") must not silently reappear
+// under v2 ("must be published today"). They answer different questions.
+const KEY = "aidigest-labels-rubric2-" + CASE_ID;
 
 let labels = {};
 try { labels = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (e) { labels = {}; }
@@ -120,8 +130,8 @@ for (const item of ITEMS) {
     ${bullets}
     <div class="en">${escapeHtml(item.title)}</div>
     <div class="acts">
-      <button data-v="1">值得读</button>
-      <button data-v="0">不值得</button>
+      <button data-v="1">必须留</button>
+      <button data-v="0">可以不看</button>
     </div>`;
 
   el.querySelector('[data-v="1"]').addEventListener("click", () => set(item.id, 1));
@@ -139,6 +149,7 @@ function set(id, value) {
 function paint() {
   const total = ITEMS.length;
   let done = 0;
+  let must = 0;
   for (const el of cards.children) {
     const id = el.dataset.id;
     el.classList.remove("yes", "no");
@@ -146,7 +157,7 @@ function paint() {
     if (labels[id] === 1) {
       el.classList.add("yes");
       el.querySelector('[data-v="1"]').classList.add("on-yes");
-      done++;
+      done++; must++;
     } else if (labels[id] === 0) {
       el.classList.add("no");
       el.querySelector('[data-v="0"]').classList.add("on-no");
@@ -154,6 +165,9 @@ function paint() {
     }
   }
   document.getElementById("progress").textContent = done + " / " + total;
+  const sel = document.getElementById("selected");
+  sel.textContent = "必须留 " + must + " / " + SLOTS;
+  sel.classList.toggle("over", must > SLOTS);
   document.getElementById("bar").style.width = (total ? 100 * done / total : 0) + "%";
   document.getElementById("done").hidden = done !== total || total === 0;
 }
@@ -187,7 +201,7 @@ document.getElementById("export").addEventListener("click", () => {
   const blob = new Blob([JSON.stringify(payload, null, 2)], {type:"application/json"});
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = "labels-" + CASE_ID + ".json";
+  a.download = "labels-" + CASE_ID + "-rubric2.json";
   a.click();
   URL.revokeObjectURL(a.href);
 });
@@ -207,7 +221,10 @@ paint();
 
 
 def build_labeler_html(
-    case: EvalCase, annotations: CaseAnnotations | None = None
+    case: EvalCase,
+    annotations: CaseAnnotations | None = None,
+    *,
+    slots: int = 12,
 ) -> str:
     annotated = (annotations.items if annotations else {}) or {}
 
@@ -240,7 +257,12 @@ def build_labeler_html(
             "可以重新运行 <code>ai-digest eval annotate</code> 补齐。</div>"
         )
 
-    html = _TEMPLATE.replace("__CASE_ID_TEXT__", case.case_id).replace("__BANNER__", banner)
+    html = (
+        _TEMPLATE.replace("__CASE_ID_TEXT__", case.case_id)
+        .replace("__BANNER__", banner)
+        .replace("__SLOTS__", str(slots))
+        .replace("__TOTAL__", str(len(case.items)))
+    )
     return html.replace("__CASE_ID__", json.dumps(case.case_id)).replace(
         "__ITEMS__", json.dumps(items, ensure_ascii=False)
     )
