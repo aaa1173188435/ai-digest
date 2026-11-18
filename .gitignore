@@ -31,3 +31,7 @@ eval/label-*.html
 # IDE
 .idea/
 *.iml
+
+# repo-local toolchain (PowerShell 7 portable, 256MB)
+.tools/
+.cache/

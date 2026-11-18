@@ -79,10 +79,20 @@ schannel 拿不到凭证、写不了用户目录里 Medium IL 的文件、拉起
 
 | 问题 | 能修吗 | 现状 |
 |---|---|---|
-| `curl` / `Invoke-WebRequest` 全部 TLS 失败 | ❌ **不可修** | Low IL 下 schannel 无法向 lsass 取客户端凭证。与 TLS 版本无关（强制 1.2 也失败）、与证书和服务无关（CryptSvc / KeyIso 都在跑）、与 crypto 目录权限无关（可读）。**用 Python 或 Node**，它们走 OpenSSL，不碰 schannel |
+| `curl` / `Invoke-WebRequest` 全部 TLS 失败 | ❌ **不可修** | Low IL 下 schannel 无法向 lsass 取客户端凭证。与 TLS 版本无关（强制 1.2 也失败）、与证书和服务无关（CryptSvc / KeyIso 都在跑）、与 crypto 目录权限无关（可读）。**装 PowerShell 7 也没用，已验证**。用 Python 或 Node，它们走 OpenSSL，不碰 schannel |
 | pip 装包卡十几分钟 | ✅ 已修 | 配置写在 `.venv\pip.ini`（`disable-pip-version-check` + 镜像）。不能写 `%APPDATA%\pip\pip.ini`——那是 Medium IL，Low IL 写不了，即使 DACL 里给了 FullControl：**完整性级别优先于 DACL**。现在装一个已满足的包约 0.7s |
 | `git push` 失败 | ✅ 已修 | 用 `tools\push.ps1`（见下） |
-| PowerShell 把参数拆开 | ❌ **不可修** | 这台是 **Windows PowerShell 5.1**，没有 `$PSNativeCommandArgumentPassing`（那是 PS 7.3+）。带空格/引号的参数传给原生 exe 必然被拆。用 `ConvertFrom-Json` 代替 `gh api --jq` |
+| PowerShell 把参数拆开 | ✅ 已修 | 已装 **PowerShell 7.7.0** 便携版在 `.tools\pwsh`，并已加入用户 PATH，`pwsh` 直接可用。实测 `gh api --jq '.a + "  " + .b'` 在 5.1 上被拆成两个参数、在 7.7 上正确。附带收益：5.1 控制台中文乱码，7.7 正常 |
+
+### PowerShell 7 的两个限制
+
+1. **它在仓库里**（`.tools/pwsh`，256 MB，已 gitignore）。用户 PATH 指向这个绝对路径，所以**移动或删除这个工作区会让 PATH 里的条目失效**（无害，但 `pwsh` 就找不到了）。
+2. **它不修 TLS**。已实测：PS7 的 `Invoke-WebRequest` 仍然是 `The SSL connection could not be established`——因为它还是走 schannel，进程还是 Low IL。想真正修好只能脱离这个沙箱。
+
+安装方式（供参考，重装时用）：GitHub Release 的原生下载域名 `objects.githubusercontent.com` 在这里不通，**必须走清华镜像**，
+`https://mirrors.tuna.tsinghua.edu.cn/github-release/PowerShell/PowerShell/LatestRelease/`
+（实测 40 MB/s）。校验和在同目录 `hashes.sha256`，注意那是 **UTF-16LE** 编码。
+
 
 ### 推代码
 
