@@ -1,7 +1,13 @@
 {
   "case_id": "2026-11-18",
-  "created_at": "2026-11-18T04:54:30.575657Z",
+  "created_at": "2026-11-18T05:31:45.984269Z",
   "items": [
+    {
+      "id": "https://consumerrights.wiki/w/ID.me_terms_required_for_IRS_sign-in",
+      "title": "ID.me terms required for IRS sign-in",
+      "source": "Hacker News 200+",
+      "summary": ""
+    },
     {
       "id": "https://simonwillison.net/2026/Nov/17/external-sandboxes-for-coding-agents",
       "title": "External sandboxes for coding agents",
@@ -67,12 +73,6 @@
       "title": "Introducing GPT-6.2 Astra and Sol",
       "source": "OpenAI",
       "summary": "Introducing GPT‐6.2 Astra and Sol, with better professional outputs, coding, computer use, and efficiency at lower cost across ChatGPT Work, Codex, and the API."
-    },
-    {
-      "id": "https://ft.com/content/dbde7a30-548c-4f9d-a4be-7898a0c24dcf",
-      "title": "Nvidia stopped disclosing Singapore sales as revenues hit $104B",
-      "source": "Hacker News 200+",
-      "summary": ""
     },
     {
       "id": "https://blog.google/innovation-and-ai/products/gemini-app/tasks-in-gemini-free-new-features",
